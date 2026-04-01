@@ -20,9 +20,9 @@ from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 import socketio as socketio_lib
 
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Global variables - initialized at runtime in startup()
+client = None
+db = None
 
 # Socket.IO server for real-time truck tracking
 sio = socketio_lib.AsyncServer(
@@ -689,6 +689,14 @@ async def handle_stop_tracking(sid, data):
 
 @fastapi_app.on_event("startup")
 async def startup():
+    # Initialize database connection at runtime (not build time)
+    global client, db
+    mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+    db_name = os.environ.get("DB_NAME", "test_database")
+    client = AsyncIOMotorClient(mongo_url)
+    db = client[db_name]
+    logger.info(f"Connected to MongoDB: {db_name}")
+    
     await db.users.create_index("email", unique=True)
     await db.live_positions.create_index("truck_id", unique=True)
     await db.ground_reports.create_index("report_id", unique=True)
