@@ -1,0 +1,32 @@
+# Render Configuration for Full-Stack Deployment
+
+# This configuration is used for deploying both frontend and backend applications on Render.
+
+services:
+  - type: web
+    name: frontend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    plan: starter
+    github:
+      repo: TopGdaddy/app
+      branch: main
+    routes:
+      - src: /api
+        dest: /backend
+
+  - type: web
+    name: backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    plan: starter
+    github:
+      repo: TopGdaddy/app
+      branch: main
+    routes:
+      - src: /api
+        dest: /api-endpoint

@@ -1,0 +1,118 @@
+{
+  "theme": "light",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "design_philosophy": "A highly functional, 'Control Room' style dashboard designed for logistics operators, drivers, and admins. It uses a strictly structured, grid-based layout with sharp borders, prioritizing data density, scanability, and real-time mapping over decorative elements. High contrast accents are used exclusively for system status (warnings, live tracking, alerts).",
+  "colors": {
+    "background": "#FFFFFF",
+    "foreground": "#0A0A0A",
+    "card": "#F9FAFB",
+    "card_foreground": "#0A0A0A",
+    "popover": "#FFFFFF",
+    "popover_foreground": "#0A0A0A",
+    "primary": "#002FA7",
+    "primary_foreground": "#FFFFFF",
+    "secondary": "#F3F4F6",
+    "secondary_foreground": "#111827",
+    "muted": "#F3F4F6",
+    "muted_foreground": "#6B7280",
+    "accent": "#E0E7FF",
+    "accent_foreground": "#002FA7",
+    "destructive": "#E02424",
+    "destructive_foreground": "#FFFFFF",
+    "warning": "#FACA15",
+    "warning_foreground": "#0A0A0A",
+    "success": "#10B981",
+    "success_foreground": "#FFFFFF",
+    "border": "#E5E7EB",
+    "input": "#E5E7EB",
+    "ring": "#002FA7"
+  },
+  "typography": {
+    "font_family": {
+      "heading": "IBM Plex Sans, sans-serif",
+      "body": "Work Sans, sans-serif",
+      "mono": "IBM Plex Mono, monospace"
+    },
+    "font_sizes": {
+      "h1": "text-4xl sm:text-5xl tracking-tight font-bold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-semibold",
+      "h3": "text-xl sm:text-2xl tracking-tight font-medium",
+      "h4": "text-lg font-medium",
+      "body": "text-base",
+      "small": "text-sm",
+      "overline": "text-xs tracking-[0.2em] uppercase font-bold"
+    }
+  },
+  "layout_and_spacing": {
+    "spacing_scale": "Use generous spacing for main layout blocks (p-6, p-8) to ensure breathing room, but switch to dense tight grids (gap-4, p-4) inside analytics widgets and lists.",
+    "dashboard_grid": "The 'Control Room' grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4 or 12-column grid. Tight gaps (gap-4 or gap-6).",
+    "borders": "Expose the skeleton. Use 1px solid borders (border-border) for widgets and structural divisions. Use border-collapse patterns where possible.",
+    "radius": "Keep it sharp. Max rounded-sm (4px) or rounded-none for a purely technical aesthetic."
+  },
+  "surfaces_and_materials": {
+    "dashboard_widgets": "Flat solid backgrounds. 1px solid border. NO soft shadows. On hover: slight darken of border color, no lifting.",
+    "header_nav": "Solid background with a hard bottom border (border-b border-border) to separate from the application body. Sticky positioning with z-50.",
+    "map_overlay": "Floating panels over the Leaflet map should have a solid background (bg-white) with a hard 1px border and a subtle shadow (shadow-sm) to ensure high visibility against the map."
+  },
+  "components": {
+    "buttons": "Square or minimally rounded. High contrast. Primary uses #002FA7. Must include hover state (hover:bg-opacity-90).",
+    "tables": "Dense rows. Monospaced font for IDs, coordinates, and license plates. Hover states on rows are mandatory.",
+    "map": "Leaflet.js. Use a light, low-contrast map tile (e.g., CartoDB Positron) so active truck markers, traffic overlays, and incident pins stand out immediately.",
+    "charts": "Recharts. Avoid unnecessary axes lines. Use strict brand colors (Primary, Accent, Success, Warning) for bar and line charts."
+  },
+  "motion_and_interactions": {
+    "hover_states": "All interactive elements must change background and text color explicitly on hover.",
+    "live_indicators": "Real-time GPS tracking dots and 'Live' status indicators must use a CSS pulsing animation (animate-ping).",
+    "skeleton_loaders": "Use Shadcn skeleton for all async dashboard panels (map loading, fetching analytics)."
+  },
+  "icons_and_assets": {
+    "icon_library": "lucide-react (Dense, clean, standard)",
+    "usage": "Use icons heavily in the sidebar and action buttons, but keep them at small sizes (w-4 h-4 or w-5 h-5)."
+  },
+  "media": {
+    "hero_backgrounds": [
+      {
+        "url": "https://images.unsplash.com/photo-1766785368863-f2188a8c8b32?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHxsb2dpc3RpY3MlMjB0cmFuc3BvcnQlMjB0cnVjayUyMGhpZ2h3YXl8ZW58MHx8fHwxNzc1MDU5OTIzfDA&ixlib=rb-4.1.0&q=85",
+        "category": "truck_fleet",
+        "description": "Two semi-trucks driving on a highway, useful for Auth background or landing page"
+      },
+      {
+        "url": "https://images.pexels.com/photos/193667/pexels-photo-193667.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "logistics_hero",
+        "description": "Supply chain truck traveling on a highway"
+      }
+    ],
+    "context_imagery": [
+      {
+        "url": "https://images.pexels.com/photos/29092195/pexels-photo-29092195.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "mumbai_traffic",
+        "description": "Crowded street in Mumbai, usable for Ground Reporting module context"
+      }
+    ],
+    "avatars": [
+      {
+        "url": "https://images.pexels.com/photos/14797988/pexels-photo-14797988.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "driver_portrait_1",
+        "description": "Confident truck driver, for driver profiles"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1695395860103-38d172403a46?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwzfHxpbmRpYW4lMjB0cnVjayUyMGRyaXZlciUyMHBvcnRyYWl0fGVufDB8fHx8MTc3NTA1OTkyNXww&ixlib=rb-4.1.0&q=85",
+        "category": "driver_portrait_2",
+        "description": "Man sitting in driver seat, for driver profile mocks"
+      }
+    ]
+  },
+  "testing_and_accessibility": {
+    "data_testid": "ALL interactive elements, navigation links, and specific data readouts (like total trucks, carbon metrics) MUST include descriptive kebab-case 'data-testid' attributes (e.g., 'data-testid=\"map-truck-marker\"').",
+    "contrast": "Ensure text over map or colored badges maintains minimum WCAG AA standards (3:1 for large text, 4.5:1 for normal)."
+  },
+  "implementation_instructions_for_main_agent": [
+    "Override default generic sans fonts with 'IBM Plex Sans' for headings and 'IBM Plex Mono' for tabular/GPS data.",
+    "Implement the Layout using a Sidebar + Main Content pattern. The Sidebar should be dark (#0A0A0A) or high-contrast grey, while the Main Content is #F3F4F6 (background) with #FFFFFF cards.",
+    "For the Leaflet Map, use a custom DivIcon or standard marker for the trucks. Ensure the map is centered on Mumbai (19.0760, 72.8777).",
+    "Create 5 mock trucks moving on the map (simulate movement with setInterval) and 1 'real' truck representing the user.",
+    "Shadcn customized configuration: set 'radius' to 0.25rem or 0 in the CSS variables to match the 'Swiss Technical' theme.",
+    "Build the dashboard using pure grid syntax. Example: <div className=\"grid grid-cols-1 md:grid-cols-4 gap-4\">. Use col-span-2 or col-span-3 for the main charts.",
+    "For the ground reporting, provide a form with severity badges (Red, Yellow, Green) and map the submissions to a real-time feed list with upvote/downvote arrows."
+  ]
+}
