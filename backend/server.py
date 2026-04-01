@@ -744,11 +744,10 @@ async def shutdown():
 
 fastapi_app.include_router(api_router)
 
-# Temporarily serving FastAPI directly to fix HTTP API issues
-# Socket.IO real-time features are disabled for now
-app = fastapi_app
+# Wrap FastAPI with Socket.IO ASGI app - this becomes the main 'app' for uvicorn
+app = socketio_lib.ASGIApp(sio, other_asgi_app=fastapi_app, socketio_path='/api/socket.io')
 
 if __name__ == "__main__":
     import uvicorn
     PORT = int(os.environ.get("PORT", 8000))
-    uvicorn.run(fastapi_app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
