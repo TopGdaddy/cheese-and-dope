@@ -48,7 +48,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 def get_jwt_secret():
-    return os.environ["JWT_SECRET"]
+    return os.environ.get("JWT_SECRET", "devsecretkey123")
 
 def create_access_token(user_id: str, email: str) -> str:
     payload = {"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(hours=24), "type": "access"}
