@@ -739,9 +739,20 @@ def allowed_origin(origin: str) -> bool:
         return True
     return False
 
+# Configure CORS with explicit allowed origins
+allowed_origins = [
+    "http://localhost:3000",
+    "https://urbanlogicx.netlify.app",
+]
+
+# Add FRONTEND_URL from environment if set
+frontend_url = os.environ.get("FRONTEND_URL")
+if frontend_url and frontend_url not in allowed_origins:
+    allowed_origins.append(frontend_url)
+
 fastapi_app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^(https://[a-z0-9-]+\.netlify\.app|http://localhost:\d+|http://127\.0\.0\.1:\d+)$",
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
