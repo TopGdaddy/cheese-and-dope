@@ -50,7 +50,7 @@ export default function Sidebar() {
           <div className="flex items-center gap-2">
             <Truck className="w-5 h-5 text-[#002FA7]" />
             <span className="text-base font-bold tracking-tight" style={{ fontFamily: 'IBM Plex Sans' }}>
-              UrbanTrack
+              UrbanLogicx
             </span>
           </div>
         )}

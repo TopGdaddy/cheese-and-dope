@@ -66,7 +66,7 @@ export default function AuthPage() {
         <div className="relative z-10 flex flex-col justify-end p-12">
           <div className="flex items-center gap-3 mb-4">
             <Truck className="w-8 h-8 text-white" />
-            <span className="text-2xl font-bold text-white" style={{ fontFamily: 'IBM Plex Sans' }}>UrbanTrack</span>
+            <span className="text-2xl font-bold text-white" style={{ fontFamily: 'IBM Plex Sans' }}>UrbanLogicx</span>
           </div>
           <h1 className="text-4xl font-bold text-white mb-3 leading-tight" style={{ fontFamily: 'IBM Plex Sans' }}>
             Smart Urban Logistics<br />& Live Tracking
@@ -83,7 +83,7 @@ export default function AuthPage() {
         <div className="w-full max-w-[400px]">
           <div className="lg:hidden flex items-center gap-2 mb-8">
             <Truck className="w-6 h-6 text-[#002FA7]" />
-            <span className="text-xl font-bold" style={{ fontFamily: 'IBM Plex Sans' }}>UrbanTrack</span>
+            <span className="text-xl font-bold" style={{ fontFamily: 'IBM Plex Sans' }}>UrbanLogicx</span>
           </div>
 
           <Tabs value={tab} onValueChange={setTab} className="w-full">
