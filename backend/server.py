@@ -25,10 +25,21 @@ import socketio as socketio_lib
 client = None
 db = None
 
+# Configure CORS with explicit allowed origins
+allowed_origins = [
+    "http://localhost:3000",
+    "https://urbanlogicx.netlify.app",
+]
+
+# Add FRONTEND_URL from environment if set
+frontend_url = os.environ.get("FRONTEND_URL")
+if frontend_url and frontend_url not in allowed_origins:
+    allowed_origins.append(frontend_url)
+
 # Socket.IO server for real-time truck tracking
 sio = socketio_lib.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins='*',
+    cors_allowed_origins=allowed_origins,
     logger=False,
     engineio_logger=False
 )
@@ -36,6 +47,15 @@ sio = socketio_lib.AsyncServer(
 fastapi_app = FastAPI()
 api_router = APIRouter(prefix="/api")
 JWT_ALGORITHM = "HS256"
+
+# Apply CORS middleware before any routes
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -172,8 +192,8 @@ async def register(input_data: RegisterInput):
         resp_data["organization_id"] = user_doc["organization_id"]
 
     response = JSONResponse(content=resp_data)
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="none", max_age=86400, path="/")
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
     return response
 
 @api_router.post("/auth/login")
@@ -192,15 +212,15 @@ async def login(input_data: LoginInput):
         resp_data["organization_id"] = str(user["organization_id"])
 
     response = JSONResponse(content=resp_data)
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="none", max_age=86400, path="/")
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
     return response
 
 @api_router.post("/auth/logout")
 async def logout():
     response = JSONResponse(content={"message": "Logged out"})
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("access_token", path="/", secure=True, samesite="none")
+    response.delete_cookie("refresh_token", path="/", secure=True, samesite="none")
     return response
 
 @api_router.get("/auth/me")
@@ -723,40 +743,6 @@ async def shutdown():
     client.close()
 
 fastapi_app.include_router(api_router)
-
-def allowed_origin(origin: str) -> bool:
-    """Check if origin is allowed - supports Netlify wildcard"""
-    if not origin:
-        return False
-    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-    if origin == frontend_url:
-        return True
-    # Allow all Netlify domains (including PR previews)
-    if re.match(r"^https://[a-z0-9-]+\.netlify\.app$", origin):
-        return True
-    # Allow localhost for development
-    if origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:"):
-        return True
-    return False
-
-# Configure CORS with explicit allowed origins
-allowed_origins = [
-    "http://localhost:3000",
-    "https://urbanlogicx.netlify.app",
-]
-
-# Add FRONTEND_URL from environment if set
-frontend_url = os.environ.get("FRONTEND_URL")
-if frontend_url and frontend_url not in allowed_origins:
-    allowed_origins.append(frontend_url)
-
-fastapi_app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Wrap FastAPI with Socket.IO ASGI app - this becomes the main 'app' for uvicorn
 app = socketio_lib.ASGIApp(sio, other_asgi_app=fastapi_app, socketio_path='/api/socket.io')
