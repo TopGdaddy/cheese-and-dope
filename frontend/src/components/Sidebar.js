@@ -1,7 +1,7 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Map, Calendar, AlertTriangle, LayoutDashboard, Truck, Navigation, LogOut, PanelLeftClose, PanelLeft } from 'lucide-react';
-import { useState } from 'react';
+import { Map, Calendar, AlertTriangle, LayoutDashboard, Truck, Navigation, LogOut, PanelLeftClose, PanelLeft, Bell, BarChart3, Route } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 const navConfig = {
   admin: [
@@ -9,21 +9,32 @@ const navConfig = {
     { path: '/map', label: 'Live Map', icon: Map },
     { path: '/slots', label: 'Delivery Slots', icon: Calendar },
     { path: '/reports', label: 'Reports', icon: AlertTriangle },
+    { path: '/notifications', label: 'Notifications', icon: Bell },
+    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/route-optimizer', label: 'Route Optimizer', icon: Route },
   ],
   driver: [
     { path: '/driver', label: 'Trip Control', icon: Navigation },
     { path: '/map', label: 'Live Map', icon: Map },
+    { path: '/notifications', label: 'Notifications', icon: Bell },
+    { path: '/route-optimizer', label: 'Route Optimizer', icon: Route },
   ],
   organization: [
     { path: '/organization', label: 'Fleet', icon: Truck },
     { path: '/map', label: 'Live Map', icon: Map },
     { path: '/slots', label: 'Delivery Slots', icon: Calendar },
     { path: '/reports', label: 'Reports', icon: AlertTriangle },
+    { path: '/notifications', label: 'Notifications', icon: Bell },
+    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/route-optimizer', label: 'Route Optimizer', icon: Route },
   ],
   regular: [
     { path: '/map', label: 'Live Map', icon: Map },
     { path: '/slots', label: 'Delivery Slots', icon: Calendar },
     { path: '/reports', label: 'Reports', icon: AlertTriangle },
+    { path: '/notifications', label: 'Notifications', icon: Bell },
+    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { path: '/route-optimizer', label: 'Route Optimizer', icon: Route },
   ],
 };
 
@@ -32,6 +43,35 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Get unread notification count from localStorage
+  useEffect(() => {
+    const savedState = localStorage.getItem('notifications_read_state');
+    if (savedState) {
+      const readState = JSON.parse(savedState);
+      // Count total notifications minus read ones
+      const totalNotifications = 20; // Total mock notifications
+      const readCount = Object.values(readState).filter(Boolean).length;
+      setUnreadCount(totalNotifications - readCount);
+    } else {
+      // If no saved state, all 20 mock notifications are unread
+      setUnreadCount(20);
+    }
+
+    // Listen for storage changes (when notifications are marked as read)
+    const handleStorageChange = () => {
+      const updatedState = localStorage.getItem('notifications_read_state');
+      if (updatedState) {
+        const readState = JSON.parse(updatedState);
+        const readCount = Object.values(readState).filter(Boolean).length;
+        setUnreadCount(20 - readCount);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [location.pathname]); // Refresh when navigating
 
   const items = navConfig[user?.role] || navConfig.regular;
 
@@ -72,6 +112,7 @@ export default function Sidebar() {
       <nav className="flex-1 py-1" data-testid="sidebar-nav">
         {items.map(item => {
           const active = location.pathname === item.path;
+          const isNotifications = item.path === '/notifications';
           return (
             <button
               key={item.path}
@@ -84,7 +125,12 @@ export default function Sidebar() {
               }`}
             >
               <item.icon className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              {!collapsed && <span className="truncate flex-1 text-left">{item.label}</span>}
+              {!collapsed && isNotifications && unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </button>
           );
         })}

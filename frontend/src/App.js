@@ -4,12 +4,16 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Sidebar from "@/components/Sidebar";
 import AuthPage from "@/pages/AuthPage";
+import LandingPage from "@/pages/LandingPage";
 import LiveMapPage from "@/pages/LiveMapPage";
 import SlotsPage from "@/pages/SlotsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import AdminDashboard from "@/pages/AdminDashboard";
 import OrgDashboard from "@/pages/OrgDashboard";
 import DriverPage from "@/pages/DriverPage";
+import NotificationsPage from "@/pages/NotificationsPage";
+import AnalyticsPage from "@/pages/AnalyticsPage";
+import RouteOptimizationPage from "@/pages/RouteOptimizationPage";
 
 function DashboardLayout() {
   return (
@@ -30,11 +34,19 @@ function RoleRedirect() {
   return <Navigate to="/map" replace />;
 }
 
+function LandingPageRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user && user !== false) return <Navigate to="/" replace />;
+  return <LandingPage />;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<LandingPageRoute />} />
           <Route path="/login" element={<AuthPage />} />
           <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<RoleRedirect />} />
@@ -44,6 +56,9 @@ function App() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/organization" element={<OrgDashboard />} />
             <Route path="/driver" element={<DriverPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/route-optimizer" element={<RouteOptimizationPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { RefreshCw, MapPin, Truck, AlertTriangle, Eye, EyeOff, Wifi } from 'lucide-react';
+import { RefreshCw, MapPin, Truck, AlertTriangle, Eye, EyeOff, Wifi, Navigation, Route } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const SOCKET_URL = process.env.REACT_APP_BACKEND_URL;
@@ -54,12 +54,56 @@ export default function LiveMapPage() {
   const [trails, setTrails] = useState({});
   const [showMock, setShowMock] = useState(true);
   const [showReports, setShowReports] = useState(true);
+  const [showCongestionZones, setShowCongestionZones] = useState(true);
+  const [showRouteOptimization, setShowRouteOptimization] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState(null);
   const [followTruck, setFollowTruck] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const trailsRef = useRef({});
   const socketRef = useRef(null);
+
+  // MOCK DATA — Replace with API call to GET /api/congestion-zones when backend supports it
+  const congestionZones = [
+    { id: 1, name: 'Crawford Market', lat: 18.9475, lng: 72.8335, level: 'high', vehicles: 23, threshold: 15, radius: 1000 },
+    { id: 2, name: 'Andheri Station', lat: 19.1197, lng: 72.8464, level: 'high', vehicles: 19, threshold: 15, radius: 900 },
+    { id: 3, name: 'Dadar TT Circle', lat: 19.0178, lng: 72.8478, level: 'medium', vehicles: 12, threshold: 15, radius: 850 },
+    { id: 4, name: 'Borivali East', lat: 19.2288, lng: 72.8567, level: 'low', vehicles: 5, threshold: 15, radius: 800 },
+    { id: 5, name: 'Powai Lake Area', lat: 19.1176, lng: 72.9060, level: 'medium', vehicles: 9, threshold: 15, radius: 900 },
+    { id: 6, name: 'BKC Junction', lat: 19.0596, lng: 72.8656, level: 'high', vehicles: 21, threshold: 15, radius: 1100 },
+    { id: 7, name: 'Vashi APMC', lat: 19.0771, lng: 72.9987, level: 'medium', vehicles: 11, threshold: 15, radius: 950 },
+    { id: 8, name: 'Thane Wagle Estate', lat: 19.1975, lng: 72.9569, level: 'low', vehicles: 4, threshold: 15, radius: 800 },
+  ];
+
+  const congestionColors = { high: '#ef4444', medium: '#f97316', low: '#22c55e' };
+
+  // MOCK DATA — Replace with API call to GET /api/route-suggestions when backend supports it
+  const mockRoutes = {
+    optimal: {
+      name: 'Optimal Route (Low Congestion)',
+      positions: [
+        [19.0760, 72.8777], [19.0890, 72.8650], [19.1020, 72.8720],
+        [19.1150, 72.8550], [19.1280, 72.8680], [19.1400, 72.8500]
+      ],
+      color: '#22c55e',
+      distance: '12.3 km',
+      time: '28 min',
+      fuelSaving: '15%',
+      congestionScore: 'Low'
+    },
+    alternative: {
+      name: 'Alternative Route',
+      positions: [
+        [19.0760, 72.8777], [19.0850, 72.8900], [19.1000, 72.8850],
+        [19.1180, 72.8780], [19.1300, 72.8650], [19.1400, 72.8500]
+      ],
+      color: '#3b82f6',
+      distance: '14.1 km',
+      time: '35 min',
+      fuelSaving: '8%',
+      congestionScore: 'Medium'
+    }
+  };
 
   // Initial data fetch via REST
   const fetchInitialData = useCallback(async () => {
@@ -237,6 +281,47 @@ export default function LiveMapPage() {
             </Popup>
           </Marker>
         ))}
+
+        {/* Congestion Zone Circles */}
+        {showCongestionZones && congestionZones.map(zone => (
+          <Circle
+            key={zone.id}
+            center={[zone.lat, zone.lng]}
+            radius={zone.radius}
+            pathOptions={{
+              color: congestionColors[zone.level],
+              fillColor: congestionColors[zone.level],
+              fillOpacity: 0.15,
+              weight: 2,
+              dashArray: zone.level === 'high' ? '' : '5,5'
+            }}
+          >
+            <Popup>
+              <div className="text-sm">
+                <p className="font-bold text-base">{zone.name}</p>
+                <p>Status: <span style={{color: congestionColors[zone.level]}}>{zone.level.toUpperCase()}</span></p>
+                <p>Vehicles: {zone.vehicles}/{zone.threshold}</p>
+                <p className="text-xs mt-1">
+                  {zone.level === 'high' ? '⚠️ Rerouting recommended' : zone.level === 'medium' ? '⏳ Monitor closely' : '✅ Clear for delivery'}
+                </p>
+              </div>
+            </Popup>
+          </Circle>
+        ))}
+
+        {/* Route Suggestion Polylines */}
+        {showRouteOptimization && (
+          <>
+            <Polyline
+              positions={mockRoutes.optimal.positions}
+              pathOptions={{ color: '#22c55e', weight: 4, opacity: 0.8, dashArray: '10,6' }}
+            />
+            <Polyline
+              positions={mockRoutes.alternative.positions}
+              pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.6, dashArray: '8,8' }}
+            />
+          </>
+        )}
       </MapContainer>
 
       {/* Top-right controls */}
@@ -288,6 +373,26 @@ export default function LiveMapPage() {
           <Button
             variant="ghost"
             size="sm"
+            data-testid="toggle-zones-btn"
+            className={`justify-start text-xs h-7 ${showCongestionZones ? 'text-orange-600' : ''}`}
+            onClick={() => setShowCongestionZones(!showCongestionZones)}
+          >
+            {showCongestionZones ? <Eye className="w-3 h-3 mr-1" /> : <EyeOff className="w-3 h-3 mr-1" />}
+            Congestion Zones
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="toggle-routes-btn"
+            className={`justify-start text-xs h-7 ${showRouteOptimization ? 'text-green-600' : ''}`}
+            onClick={() => setShowRouteOptimization(!showRouteOptimization)}
+          >
+            {showRouteOptimization ? <Route className="w-3 h-3 mr-1" /> : <Navigation className="w-3 h-3 mr-1" />}
+            Route Suggestions
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             data-testid="refresh-map-btn"
             className="justify-start text-xs h-7"
             onClick={fetchInitialData}
@@ -297,6 +402,29 @@ export default function LiveMapPage() {
           </Button>
         </div>
       </div>
+
+      {/* Route Comparison Panel */}
+      {showRouteOptimization && (
+        <div className="absolute bottom-4 left-4 z-[1000] map-overlay-panel p-4 max-w-xs" data-testid="route-info-panel">
+          <p className="text-sm font-semibold text-[#0A0A0A] mb-3" style={{ fontFamily: 'IBM Plex Sans' }}>Route Comparison</p>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500 mt-0.5 shrink-0" />
+              <div className="text-xs">
+                <p className="font-medium text-[#0A0A0A]">Optimal: {mockRoutes.optimal.distance} · {mockRoutes.optimal.time}</p>
+                <p className="text-[#6B7280]">Fuel saving: {mockRoutes.optimal.fuelSaving} · Congestion: {mockRoutes.optimal.congestionScore}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500 mt-0.5 shrink-0" />
+              <div className="text-xs">
+                <p className="font-medium text-[#0A0A0A]">Alternative: {mockRoutes.alternative.distance} · {mockRoutes.alternative.time}</p>
+                <p className="text-[#6B7280]">Fuel saving: {mockRoutes.alternative.fuelSaving} · Congestion: {mockRoutes.alternative.congestionScore}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom-left truck info */}
       {selectedTruck && (
