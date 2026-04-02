@@ -54,6 +54,7 @@ export const navigationItems = [
     roles: ['organization'],
     items: [
       { name: 'Fleet', path: '/organization', icon: Truck },
+      { name: 'My Drivers', path: '/org/drivers', icon: UserCheck },
       { name: 'Live Map', path: '/map', icon: Map },
       { name: 'Delivery Slots', path: '/slots', icon: Calendar },
       { name: 'Reports', path: '/reports', icon: AlertTriangle },

@@ -153,6 +153,17 @@ class VoteInput(BaseModel):
 class ReportStatusUpdate(BaseModel):
     status: str
 
+class CreditTopUp(BaseModel):
+    organization_id: str
+    amount: int
+    reason: str = "Admin top-up"
+
+class DriverLinkInput(BaseModel):
+    driver_email: str
+
+class DriverUnlinkInput(BaseModel):
+    driver_id: str
+
 # ========== HEALTH ENDPOINT ==========
 
 @api_router.get("/health")
@@ -179,7 +190,10 @@ async def register(input_data: RegisterInput):
 
     if input_data.role == "organization" and input_data.organization_name:
         org_result = await db.organizations.insert_one({
-            "name": input_data.organization_name, "contact_email": email,
+            "name": input_data.organization_name, 
+            "contact_email": email,
+            "credits": 50,  # Starting credits
+            "total_credits_used": 0,
             "created_at": datetime.now(timezone.utc).isoformat()
         })
         user_doc["organization_id"] = str(org_result.inserted_id)
@@ -326,11 +340,46 @@ async def book_slot(booking: SlotBookInput, request: Request):
     user = await get_current_user(request)
     if user["role"] not in ["organization", "admin"]:
         raise HTTPException(status_code=403, detail="Organization or admin only")
+    
     slot = await db.delivery_slots.find_one({"slot_id": booking.slot_id})
     if not slot:
         raise HTTPException(status_code=404, detail="Slot not found")
     if slot["booked_count"] >= slot["max_capacity"]:
         raise HTTPException(status_code=400, detail="Slot is full")
+
+    # Calculate credit cost based on congestion level
+    current_ratio = slot["booked_count"] / slot["max_capacity"]
+    if current_ratio >= 0.8:
+        credit_cost = 3  # High demand
+    elif current_ratio >= 0.5:
+        credit_cost = 2  # Medium demand
+    else:
+        credit_cost = 1  # Low demand
+
+    # Check and deduct credits for organizations (admin bypasses credits)
+    if user["role"] == "organization":
+        org_id = user.get("organization_id")
+        if not org_id:
+            raise HTTPException(status_code=400, detail="No organization linked to your account")
+        
+        org = await db.organizations.find_one({"_id": ObjectId(org_id)})
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        
+        current_credits = org.get("credits", 0)
+        if current_credits < credit_cost:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient credits. Required: {credit_cost}, Available: {current_credits}. Contact admin for top-up."
+            )
+        
+        # Deduct credits
+        await db.organizations.update_one(
+            {"_id": ObjectId(org_id)},
+            {
+                "$inc": {"credits": -credit_cost, "total_credits_used": credit_cost}
+            }
+        )
 
     new_count = slot["booked_count"] + 1
     ratio = new_count / slot["max_capacity"]
@@ -340,14 +389,27 @@ async def book_slot(booking: SlotBookInput, request: Request):
         {"slot_id": booking.slot_id},
         {"$inc": {"booked_count": 1}, "$set": {"congestion_level": congestion}}
     )
+    
     booking_doc = {
-        "booking_id": str(ObjectId()), "slot_id": booking.slot_id,
-        "user_id": user["_id"], "user_name": user["name"],
+        "booking_id": str(ObjectId()), 
+        "slot_id": booking.slot_id,
+        "user_id": user["_id"], 
+        "user_name": user["name"],
         "organization_id": user.get("organization_id"),
-        "status": "booked", "booked_at": datetime.now(timezone.utc).isoformat()
+        "credit_cost": credit_cost,
+        "status": "booked", 
+        "booked_at": datetime.now(timezone.utc).isoformat()
     }
     await db.slot_bookings.insert_one(booking_doc)
     booking_doc.pop("_id", None)
+    
+    # Include remaining credits in response
+    remaining_credits = None
+    if user["role"] == "organization" and user.get("organization_id"):
+        org = await db.organizations.find_one({"_id": ObjectId(user["organization_id"])})
+        remaining_credits = org.get("credits", 0) if org else None
+    
+    booking_doc["remaining_credits"] = remaining_credits
     return booking_doc
 
 @api_router.get("/slots/bookings")
@@ -487,6 +549,199 @@ async def get_org_stats(request: Request):
         "delivery_completion_rate": 87.5, "avg_delivery_time_min": 45,
         "fuel_saved_liters": round(bookings * 3.2, 1)
     }
+
+# ========== CREDIT ENDPOINTS ==========
+
+@api_router.get("/org/credits")
+async def get_org_credits(request: Request):
+    """Get current organization's credit balance"""
+    user = await get_current_user(request)
+    if user["role"] not in ["organization", "admin"]:
+        raise HTTPException(status_code=403, detail="Organization or admin only")
+    
+    org_id = user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization linked")
+    
+    org = await db.organizations.find_one({"_id": ObjectId(org_id)})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Get recent credit transactions
+    recent_bookings = await db.slot_bookings.find(
+        {"organization_id": org_id}
+    ).sort("booked_at", -1).to_list(10)
+    
+    for b in recent_bookings:
+        b.pop("_id", None)
+    
+    return {
+        "credits": org.get("credits", 0),
+        "total_used": org.get("total_credits_used", 0),
+        "org_name": org.get("name", "Unknown"),
+        "recent_transactions": recent_bookings
+    }
+
+@api_router.post("/admin/credits/topup")
+async def topup_credits(topup: CreditTopUp, request: Request):
+    """Admin: Add credits to an organization"""
+    user = await get_current_user(request)
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    org = await db.organizations.find_one({"_id": ObjectId(topup.organization_id)})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    await db.organizations.update_one(
+        {"_id": ObjectId(topup.organization_id)},
+        {"$inc": {"credits": topup.amount}}
+    )
+    
+    # Log the top-up
+    await db.credit_transactions.insert_one({
+        "organization_id": topup.organization_id,
+        "amount": topup.amount,
+        "type": "topup",
+        "reason": topup.reason,
+        "admin_id": user["_id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    updated_org = await db.organizations.find_one({"_id": ObjectId(topup.organization_id)})
+    return {
+        "message": f"Added {topup.amount} credits to {org['name']}",
+        "new_balance": updated_org.get("credits", 0)
+    }
+
+@api_router.get("/admin/organizations")
+async def get_all_organizations(request: Request):
+    """Admin: List all organizations with credit info"""
+    user = await get_current_user(request)
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    orgs = await db.organizations.find({}).to_list(100)
+    for org in orgs:
+        org["_id"] = str(org["_id"])
+        # Count linked drivers
+        driver_count = await db.users.count_documents({
+            "organization_id": str(org["_id"]),
+            "role": "driver"
+        })
+        org["driver_count"] = driver_count
+    
+    return orgs
+
+# ========== DRIVER VERIFICATION / LINKING ENDPOINTS ==========
+
+@api_router.post("/org/drivers/link")
+async def link_driver(input_data: DriverLinkInput, request: Request):
+    """Organization: Link an existing driver account to this organization"""
+    user = await get_current_user(request)
+    if user["role"] not in ["organization", "admin"]:
+        raise HTTPException(status_code=403, detail="Organization or admin only")
+    
+    org_id = user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization linked to your account")
+    
+    # Find the driver by email
+    driver_email = input_data.driver_email.lower().strip()
+    driver = await db.users.find_one({"email": driver_email})
+    
+    if not driver:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"No account found with email '{driver_email}'. The driver must first create an account on UrbanLogix with the 'driver' role."
+        )
+    
+    if driver["role"] != "driver":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"The account '{driver_email}' is registered as '{driver['role']}', not as a driver. Only driver accounts can be linked."
+        )
+    
+    # Check if driver is already linked to another organization
+    if driver.get("organization_id") and driver["organization_id"] != org_id:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Driver '{driver['name']}' is already linked to another organization. They must be unlinked first."
+        )
+    
+    # Check if already linked to this organization
+    if driver.get("organization_id") == org_id:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Driver '{driver['name']}' is already linked to your organization."
+        )
+    
+    # Link the driver
+    await db.users.update_one(
+        {"_id": driver["_id"]},
+        {"$set": {"organization_id": org_id}}
+    )
+    
+    return {
+        "message": f"Driver '{driver['name']}' ({driver_email}) has been linked to your organization.",
+        "driver": {
+            "id": str(driver["_id"]),
+            "name": driver["name"],
+            "email": driver["email"]
+        }
+    }
+
+@api_router.post("/org/drivers/unlink")
+async def unlink_driver(input_data: DriverUnlinkInput, request: Request):
+    """Organization: Remove a driver from this organization"""
+    user = await get_current_user(request)
+    if user["role"] not in ["organization", "admin"]:
+        raise HTTPException(status_code=403, detail="Organization or admin only")
+    
+    org_id = user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization linked")
+    
+    driver = await db.users.find_one({"_id": ObjectId(input_data.driver_id)})
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    
+    if driver.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="This driver is not linked to your organization")
+    
+    await db.users.update_one(
+        {"_id": ObjectId(input_data.driver_id)},
+        {"$unset": {"organization_id": ""}}
+    )
+    
+    return {"message": f"Driver '{driver['name']}' has been unlinked from your organization."}
+
+@api_router.get("/org/drivers")
+async def get_org_drivers(request: Request):
+    """Organization: Get all drivers linked to this organization"""
+    user = await get_current_user(request)
+    if user["role"] not in ["organization", "admin"]:
+        raise HTTPException(status_code=403, detail="Organization or admin only")
+    
+    org_id = user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization linked")
+    
+    drivers = await db.users.find(
+        {"organization_id": org_id, "role": "driver"},
+        {"password_hash": 0}
+    ).to_list(100)
+    
+    for d in drivers:
+        d["_id"] = str(d["_id"])
+        # Check if driver has active trip
+        active_trip = await db.trips.find_one({"driver_id": d["_id"], "status": "active"})
+        d["is_active"] = active_trip is not None
+        # Get last known position
+        position = await db.live_positions.find_one({"driver_id": d["_id"]}, {"_id": 0})
+        d["last_position"] = position
+    
+    return drivers
 
 # ========== MOCK TRUCK SIMULATOR ==========
 
@@ -640,6 +895,16 @@ async def seed_sample_reports():
         await db.ground_reports.insert_one(r)
     logger.info("Sample reports seeded")
 
+async def seed_org_credits():
+    """Seed credits for existing organizations that don't have them"""
+    orgs_without_credits = db.organizations.find({"credits": {"$exists": False}})
+    async for org in orgs_without_credits:
+        await db.organizations.update_one(
+            {"_id": org["_id"]},
+            {"$set": {"credits": 50, "total_credits_used": 0}}
+        )
+        logger.info(f"Added 50 credits to org: {org.get('name', 'Unknown')}")
+
 # ========== SOCKET.IO EVENT HANDLERS ==========
 
 @sio.event
@@ -729,6 +994,7 @@ async def startup():
     await seed_admin()
     await seed_delivery_slots()
     await seed_sample_reports()
+    await seed_org_credits()
 
     os.makedirs("/app/memory", exist_ok=True)
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")

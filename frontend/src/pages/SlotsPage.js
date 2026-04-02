@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Calendar, Clock, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, Truck, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -47,8 +47,14 @@ export default function SlotsPage() {
   const handleBook = async (slotId) => {
     setBooking(true);
     try {
-      await axios.post(`${API}/slots/book`, { slot_id: slotId }, { withCredentials: true });
+      const response = await axios.post(`${API}/slots/book`, { slot_id: slotId }, { withCredentials: true });
       fetchSlots();
+      // Show success with credit info
+      if (response.data.remaining_credits !== null && response.data.remaining_credits !== undefined) {
+        alert(`Slot booked successfully! Credits used: ${response.data.credit_cost}. Remaining: ${response.data.remaining_credits}`);
+      } else {
+        alert('Slot booked successfully!');
+      }
     } catch (err) {
       alert(err.response?.data?.detail || 'Booking failed');
     } finally {
@@ -109,11 +115,12 @@ export default function SlotsPage() {
 
         {/* Slots table */}
         <div className="bg-white border border-[#E5E7EB]">
-          <div className="grid grid-cols-[1fr_100px_120px_100px_100px] gap-0 border-b border-[#E5E7EB] px-4 py-2 bg-[#F9FAFB]">
+          <div className="grid grid-cols-[1fr_80px_100px_80px_80px_100px] gap-0 border-b border-[#E5E7EB] px-4 py-2 bg-[#F9FAFB]">
             <span className="text-xs tracking-[0.15em] uppercase font-bold text-[#6B7280]">Time Slot</span>
             <span className="text-xs tracking-[0.15em] uppercase font-bold text-[#6B7280]">Trucks</span>
             <span className="text-xs tracking-[0.15em] uppercase font-bold text-[#6B7280]">Capacity</span>
             <span className="text-xs tracking-[0.15em] uppercase font-bold text-[#6B7280]">Traffic</span>
+            <span className="text-xs tracking-[0.15em] uppercase font-bold text-[#6B7280]">Cost</span>
             <span className="text-xs tracking-[0.15em] uppercase font-bold text-[#6B7280]">Action</span>
           </div>
 
@@ -130,7 +137,7 @@ export default function SlotsPage() {
                 <div
                   key={slot.slot_id}
                   data-testid={`slot-${slot.slot_id}`}
-                  className="grid grid-cols-[1fr_100px_120px_100px_100px] gap-0 border-b border-[#E5E7EB] px-4 py-3 hover:bg-[#F9FAFB] transition-colors items-center"
+                  className="grid grid-cols-[1fr_80px_100px_80px_80px_100px] gap-0 border-b border-[#E5E7EB] px-4 py-3 hover:bg-[#F9FAFB] transition-colors items-center"
                 >
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[#6B7280]" />
@@ -155,6 +162,15 @@ export default function SlotsPage() {
                     <Badge className={`${style.bg} ${style.text} ${style.border} border text-[10px]`}>
                       {style.label}
                     </Badge>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <CreditCard className="h-3 w-3 text-amber-500" />
+                    <span className={`text-xs font-medium ${
+                      slot.congestion_level === 'high' ? 'text-red-600' : 
+                      slot.congestion_level === 'medium' ? 'text-amber-600' : 'text-emerald-600'
+                    }`}>
+                      {slot.congestion_level === 'high' ? '3' : slot.congestion_level === 'medium' ? '2' : '1'}
+                    </span>
                   </div>
                   <div>
                     {isFull ? (

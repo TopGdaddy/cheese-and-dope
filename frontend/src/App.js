@@ -16,6 +16,7 @@ import NotificationsPage from "@/pages/NotificationsPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import RouteOptimizationPage from "@/pages/RouteOptimizationPage";
 import RegularDashboard from "@/pages/RegularDashboard";
+import OrgDrivers from "@/pages/OrgDrivers";
 import { getDefaultPath } from "@/config/navigationConfig";
 
 function DashboardLayout() {
@@ -78,8 +79,9 @@ function AppRoutes() {
         </Route>
 
         {/* ORGANIZATION ROUTES */}
-        <Route element={<RoleProtectedRoute allowedRoles={['organization']} />}>
+        <Route element={<RoleProtectedRoute allowedRoles={['organization', 'admin']} />}>
           <Route path="/organization" element={<OrgDashboard />} />
+          <Route path="/org/drivers" element={<OrgDrivers />} />
         </Route>
 
         {/* REGULAR USER ROUTES */}

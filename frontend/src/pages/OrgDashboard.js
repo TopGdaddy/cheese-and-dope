@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Badge } from '../components/ui/badge';
-import { Truck, Calendar, Clock, Fuel, CheckCircle } from 'lucide-react';
+import { Truck, Calendar, Clock, Fuel, CheckCircle, CreditCard } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -20,21 +20,48 @@ function StatCard({ icon: Icon, label, value, sub, color }) {
   );
 }
 
+function CreditCard({ credits, totalUsed }) {
+  const isLow = credits !== null && credits < 10;
+  const isWarning = credits !== null && credits >= 10 && credits < 20;
+  
+  return (
+    <div className={`bg-white p-4 stat-card border ${
+      isLow ? 'border-red-300' : isWarning ? 'border-amber-300' : 'border-[#E5E7EB]'
+    }`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`p-1.5 border ${isLow ? 'border-red-200 text-red-500' : isWarning ? 'border-amber-200 text-amber-500' : 'border-[#E5E7EB] text-[#FACA15]'}`}>
+          <CreditCard className="w-4 h-4" />
+        </div>
+        <span className="text-xs tracking-[0.15em] uppercase font-bold text-[#6B7280]">Booking Credits</span>
+      </div>
+      <p className={`text-2xl font-bold font-mono ${isLow ? 'text-red-500' : isWarning ? 'text-amber-500' : 'text-[#111827]'}`} style={{ fontFamily: 'IBM Plex Sans' }}>
+        {credits !== null ? credits : '—'}
+      </p>
+      <p className="text-xs text-[#6B7280] mt-1">
+        {totalUsed !== null ? `${totalUsed} used total` : 'Loading...'}
+      </p>
+    </div>
+  );
+}
+
 export default function OrgDashboard() {
   const [stats, setStats] = useState(null);
   const [fleet, setFleet] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [credits, setCredits] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [s, f, b] = await Promise.all([
+      const [s, f, b, c] = await Promise.all([
         axios.get(`${API}/org/stats`, { withCredentials: true }),
         axios.get(`${API}/org/fleet`, { withCredentials: true }),
-        axios.get(`${API}/slots/bookings`, { withCredentials: true })
+        axios.get(`${API}/slots/bookings`, { withCredentials: true }),
+        axios.get(`${API}/org/credits`, { withCredentials: true })
       ]);
       setStats(s.data);
       setFleet(f.data);
       setBookings(b.data);
+      setCredits(c.data);
     } catch (err) {
       console.error(err);
     }
@@ -50,7 +77,8 @@ export default function OrgDashboard() {
         Fleet Dashboard
       </h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <CreditCard credits={credits?.credits ?? null} totalUsed={credits?.total_used ?? null} />
         <StatCard icon={Truck} label="Active Trucks" value={stats.active_trucks} sub="On the road" color="#002FA7" />
         <StatCard icon={Calendar} label="Bookings" value={stats.total_bookings} sub="Total slot bookings" color="#10B981" />
         <StatCard icon={CheckCircle} label="Completion" value={`${stats.delivery_completion_rate}%`} sub="Delivery success rate" color="#FACA15" />
