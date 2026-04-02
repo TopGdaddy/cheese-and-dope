@@ -16,11 +16,21 @@ function formatError(detail) {
 }
 
 export default function AuthPage() {
-  const { login, register } = useAuth();
+  const { login, register, user } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('login');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already authenticated
+  if (user && user !== false) {
+    const role = user?.role;
+    if (role === 'admin') navigate('/admin', { replace: true });
+    else if (role === 'driver') navigate('/driver', { replace: true });
+    else if (role === 'organization') navigate('/organization', { replace: true });
+    else navigate('/admin', { replace: true });
+    return null;
+  }
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [regForm, setRegForm] = useState({ name: '', email: '', password: '', role: 'regular', orgName: '' });

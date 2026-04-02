@@ -21,6 +21,20 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
 
+  // Clear auth state on 401 responses
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      response => response,
+      error => {
+        if (error.response?.status === 401) {
+          setUser(false);
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
+
   const login = async (email, password) => {
     const { data } = await axios.post(`${API}/auth/login`, { email, password }, { withCredentials: true });
     setUser(data);
