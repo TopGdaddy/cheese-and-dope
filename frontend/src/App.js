@@ -45,7 +45,7 @@ function LandingPageRoute() {
   return <LandingPage />;
 }
 
-function App() {
+function AppRoutes() {
   const { loading } = useAuth();
 
   if (loading) {
@@ -60,26 +60,32 @@ function App() {
   }
 
   return (
+    <Routes>
+      <Route path="/" element={<LandingPageRoute />} />
+      <Route path="/login" element={<AuthPage />} />
+      <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+        <Route index element={<RoleRedirect />} />
+        <Route path="/dashboard" element={<DashboardRoute />} />
+        <Route path="/map" element={<LiveMapPage />} />
+        <Route path="/slots" element={<SlotsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/organization" element={<OrgDashboard />} />
+        <Route path="/driver" element={<DriverPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/route-optimizer" element={<RouteOptimizationPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/" element={<LandingPageRoute />} />
-          <Route path="/login" element={<AuthPage />} />
-          <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-            <Route index element={<RoleRedirect />} />
-            <Route path="/dashboard" element={<DashboardRoute />} />
-            <Route path="/map" element={<LiveMapPage />} />
-            <Route path="/slots" element={<SlotsPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/organization" element={<OrgDashboard />} />
-            <Route path="/driver" element={<DriverPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/route-optimizer" element={<RouteOptimizationPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
   );
