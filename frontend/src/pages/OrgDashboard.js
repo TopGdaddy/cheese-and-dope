@@ -20,7 +20,7 @@ function StatCard({ icon: Icon, label, value, sub, color }) {
   );
 }
 
-function CreditCard({ credits, totalUsed }) {
+function CreditBalanceCard({ credits, totalUsed }) {
   const isLow = credits !== null && credits < 10;
   const isWarning = credits !== null && credits >= 10 && credits < 20;
   
@@ -78,7 +78,7 @@ export default function OrgDashboard() {
       </h1>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <CreditCard credits={credits?.credits ?? null} totalUsed={credits?.total_used ?? null} />
+        <CreditBalanceCard credits={credits?.credits ?? null} totalUsed={credits?.total_used ?? null} />
         <StatCard icon={Truck} label="Active Trucks" value={stats.active_trucks} sub="On the road" color="#002FA7" />
         <StatCard icon={Calendar} label="Bookings" value={stats.total_bookings} sub="Total slot bookings" color="#10B981" />
         <StatCard icon={CheckCircle} label="Completion" value={`${stats.delivery_completion_rate}%`} sub="Delivery success rate" color="#FACA15" />
