@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Map, Calendar, AlertTriangle, LayoutDashboard, Truck, Navigation, LogOut, PanelLeftClose, PanelLeft, Bell, BarChart3, Route } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getNavigationForRole, getDefaultPath } from '../config/navigationConfig';
+import { getNotificationsForRole } from '../config/notificationsData';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -11,35 +12,46 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Get unread notification count from localStorage
+  const role = user?.role || 'regular';
+
+  // Get unread notification count from localStorage (role-specific)
   useEffect(() => {
-    const savedState = localStorage.getItem('notifications_read_state');
+    const savedState = localStorage.getItem(`notifications_read_${role}`);
+    const roleNotifications = getNotificationsForRole(role);
+    
     if (savedState) {
       const readState = JSON.parse(savedState);
-      // Count total notifications minus read ones
-      const totalNotifications = 20; // Total mock notifications
-      const readCount = Object.values(readState).filter(Boolean).length;
-      setUnreadCount(totalNotifications - readCount);
+      const unread = roleNotifications.filter(n => {
+        const isRead = readState[n.id] !== undefined ? readState[n.id] : n.read;
+        return !isRead;
+      }).length;
+      setUnreadCount(unread);
     } else {
-      // If no saved state, all 20 mock notifications are unread
-      setUnreadCount(20);
+      // If no saved state, count unread from default data
+      const unread = roleNotifications.filter(n => !n.read).length;
+      setUnreadCount(unread);
     }
 
     // Listen for storage changes (when notifications are marked as read)
     const handleStorageChange = () => {
-      const updatedState = localStorage.getItem('notifications_read_state');
+      const updatedState = localStorage.getItem(`notifications_read_${role}`);
+      const updatedNotifications = getNotificationsForRole(role);
       if (updatedState) {
         const readState = JSON.parse(updatedState);
-        const readCount = Object.values(readState).filter(Boolean).length;
-        setUnreadCount(20 - readCount);
+        const unread = updatedNotifications.filter(n => {
+          const isRead = readState[n.id] !== undefined ? readState[n.id] : n.read;
+          return !isRead;
+        }).length;
+        setUnreadCount(unread);
+      } else {
+        const unread = updatedNotifications.filter(n => !n.read).length;
+        setUnreadCount(unread);
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [location.pathname]); // Refresh when navigating
-
-  const role = user?.role || 'regular';
+  }, [role, location.pathname]); // Refresh when role changes or navigating
   const navSections = getNavigationForRole(role);
   // Flatten sections for simple rendering (keeping existing structure)
   const items = navSections.flatMap(section => section.items);
