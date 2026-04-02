@@ -34,10 +34,14 @@ function RoleRedirect() {
   return <Navigate to="/map" replace />;
 }
 
+function DashboardRoute() {
+  return <RoleRedirect />;
+}
+
 function LandingPageRoute() {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user && user !== false) return <Navigate to="/" replace />;
+  if (user && user !== false) return <Navigate to="/dashboard" replace />;
   return <LandingPage />;
 }
 
@@ -50,6 +54,7 @@ function App() {
           <Route path="/login" element={<AuthPage />} />
           <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<RoleRedirect />} />
+            <Route path="/dashboard" element={<DashboardRoute />} />
             <Route path="/map" element={<LiveMapPage />} />
             <Route path="/slots" element={<SlotsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
