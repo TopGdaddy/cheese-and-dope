@@ -29,6 +29,7 @@ db = None
 allowed_origins = [
     "http://localhost:3000",
     "https://urbanlogix.netlify.app",
+    "https://cheese-and-dope-bhumikaachaudhary002-8056s-projects.vercel.app"
 ]
 
 # Add FRONTEND_URL from environment if set
