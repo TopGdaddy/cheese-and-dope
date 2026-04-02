@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+const API = API_URL ? `${API_URL}/api` : null;
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -9,10 +10,26 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const checkAuth = useCallback(async () => {
+    // If no backend URL configured, treat as unauthenticated
+    if (!API) {
+      console.warn('REACT_APP_BACKEND_URL not configured');
+      setUser(false);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data } = await axios.get(`${API}/auth/me`, { withCredentials: true });
-      setUser(data);
-    } catch {
+      // Validate response contains actual user data
+      if (data && typeof data === 'object' && data.id) {
+        setUser(data);
+      } else {
+        // Response doesn't contain valid user data
+        setUser(false);
+      }
+    } catch (error) {
+      // Handle all error types (network, CORS, 401, 500, etc.)
+      console.warn('Auth check failed:', error.message);
       setUser(false);
     } finally {
       setLoading(false);
@@ -36,21 +53,33 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
+    if (!API) throw new Error('Backend URL not configured');
     const { data } = await axios.post(`${API}/auth/login`, { email, password }, { withCredentials: true });
-    setUser(data);
+    if (data && typeof data === 'object' && data.id) {
+      setUser(data);
+    }
     return data;
   };
 
   const register = async (name, email, password, role, organizationName) => {
+    if (!API) throw new Error('Backend URL not configured');
     const { data } = await axios.post(`${API}/auth/register`, {
       name, email, password, role, organization_name: organizationName
     }, { withCredentials: true });
-    setUser(data);
+    if (data && typeof data === 'object' && data.id) {
+      setUser(data);
+    }
     return data;
   };
 
   const logout = async () => {
-    await axios.post(`${API}/auth/logout`, {}, { withCredentials: true });
+    if (API) {
+      try {
+        await axios.post(`${API}/auth/logout`, {}, { withCredentials: true });
+      } catch (e) {
+        // Ignore logout errors
+      }
+    }
     setUser(false);
   };
 
