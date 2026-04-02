@@ -28,7 +28,7 @@ db = None
 # Configure CORS with explicit allowed origins
 allowed_origins = [
     "http://localhost:3000",
-    "https://urbanlogicx.netlify.app",
+    "https://urbanlogix.netlify.app",
 ]
 
 # Add FRONTEND_URL from environment if set
