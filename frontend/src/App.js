@@ -28,6 +28,7 @@ function DashboardLayout() {
 
 function RoleRedirect() {
   const { user } = useAuth();
+  if (!user || user === false) return <Navigate to="/login" replace />;
   if (user?.role === 'admin') return <Navigate to="/admin" replace />;
   if (user?.role === 'driver') return <Navigate to="/driver" replace />;
   if (user?.role === 'organization') return <Navigate to="/organization" replace />;
@@ -39,13 +40,25 @@ function DashboardRoute() {
 }
 
 function LandingPageRoute() {
-  const { user, loading } = useAuth();
-  if (loading) return null;
+  const { user } = useAuth();
   if (user && user !== false) return <Navigate to="/dashboard" replace />;
   return <LandingPage />;
 }
 
 function App() {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+          <span className="text-sm text-slate-400">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <AuthProvider>

@@ -89,7 +89,7 @@ export default function LandingPage() {
             <div className="flex items-center gap-2">
               <Truck className="w-6 h-6 text-[#002FA7]" />
               <span className="text-lg font-bold tracking-tight" style={{ fontFamily: 'IBM Plex Sans' }}>
-                UrbanLogicx
+                UrbanLogix
               </span>
             </div>
             <div className="hidden md:flex items-center gap-6">
@@ -320,13 +320,13 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Truck className="w-5 h-5 text-[#002FA7]" />
-              <span className="font-semibold">UrbanLogicx</span>
+              <span className="font-semibold">UrbanLogix</span>
             </div>
             <p className="text-sm text-slate-500 text-center">
               Smart Urban Logistics Platform | Built for SOP — SLRTCE | Veer Choudhary | SE IT
             </p>
             <p className="text-sm text-slate-600">
-              © 2025 UrbanLogicx
+              © 2025 UrbanLogix
             </p>
           </div>
         </div>
