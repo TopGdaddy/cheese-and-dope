@@ -1,424 +1,568 @@
 import { useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Card } from '../components/ui/card';
-import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
-import { Route, Navigation, Fuel, Clock, AlertTriangle, CheckCircle, MapPin, Info } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Route, MapPin, Clock, Fuel, Leaf, AlertTriangle, CheckCircle, Navigation, ArrowRight, RotateCcw, Truck } from 'lucide-react';
 
-// Location data with lat/lng for Mumbai areas
-const locations = [
-  { id: 'andheri_midc', name: 'Andheri MIDC', lat: 19.1136, lng: 72.8697 },
-  { id: 'powai_hiranandani', name: 'Powai Hiranandani', lat: 19.1176, lng: 72.9060 },
-  { id: 'bkc', name: 'BKC', lat: 19.0596, lng: 72.8656 },
-  { id: 'crawford_market', name: 'Crawford Market', lat: 18.9475, lng: 72.8335 },
-  { id: 'vashi_apmc', name: 'Vashi APMC', lat: 19.0771, lng: 72.9987 },
-  { id: 'borivali_east', name: 'Borivali East', lat: 19.2288, lng: 72.8567 },
-  { id: 'thane_station', name: 'Thane Station', lat: 19.2183, lng: 72.9781 },
-  { id: 'dadar_tt', name: 'Dadar TT', lat: 19.0178, lng: 72.8478 },
-  { id: 'lower_parel', name: 'Lower Parel', lat: 19.0096, lng: 72.8374 },
-  { id: 'navi_mumbai', name: 'Navi Mumbai', lat: 19.0330, lng: 73.0297 },
+// Fix Leaflet default icon issue in React
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+// Custom marker icons
+const createIcon = (color) => new L.DivIcon({
+  className: 'custom-div-icon',
+  html: `<div style="
+    background-color: ${color};
+    width: 24px;
+    height: 24px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  "></div>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 24],
+  popupAnchor: [0, -24],
+});
+
+const pickupIcon = createIcon('#22c55e');   // green
+const deliveryIcon = createIcon('#ef4444'); // red
+
+// ===== MUMBAI LOCATIONS =====
+const LOCATIONS = [
+  { id: 'crawford', name: 'Crawford Market', lat: 18.9475, lng: 72.8335, zone: 'South Mumbai' },
+  { id: 'andheri', name: 'Andheri MIDC', lat: 19.1197, lng: 72.8464, zone: 'Western Suburbs' },
+  { id: 'bkc', name: 'BKC Business District', lat: 19.0596, lng: 72.8656, zone: 'Central Mumbai' },
+  { id: 'powai', name: 'Powai Hiranandani', lat: 19.1176, lng: 72.9060, zone: 'Eastern Suburbs' },
+  { id: 'vashi', name: 'Vashi APMC Market', lat: 19.0771, lng: 72.9987, zone: 'Navi Mumbai' },
+  { id: 'dadar', name: 'Dadar TT Circle', lat: 19.0178, lng: 72.8478, zone: 'Central Mumbai' },
+  { id: 'borivali', name: 'Borivali East', lat: 19.2288, lng: 72.8567, zone: 'Western Suburbs' },
+  { id: 'thane', name: 'Thane Wagle Estate', lat: 19.1975, lng: 72.9569, zone: 'Thane' },
+  { id: 'lowerparel', name: 'Lower Parel', lat: 18.9980, lng: 72.8305, zone: 'South Mumbai' },
+  { id: 'mulund', name: 'Mulund Check Naka', lat: 19.1726, lng: 72.9563, zone: 'Eastern Suburbs' },
+  { id: 'goregaon', name: 'Goregaon MIDC', lat: 19.1550, lng: 72.8490, zone: 'Western Suburbs' },
+  { id: 'chembur', name: 'Chembur RCF', lat: 19.0522, lng: 72.8970, zone: 'Eastern Suburbs' },
 ];
 
-// Vehicle data
-const vehicles = [
-  { id: 'MH-04-AB-7291', name: 'MH-04-AB-7291', type: 'Truck' },
-  { id: 'MH-04-CD-5518', name: 'MH-04-CD-5518', type: 'Van' },
-  { id: 'MH-02-XY-4451', name: 'MH-02-XY-4451', type: 'Truck' },
-  { id: 'MH-43-LK-8823', name: 'MH-43-LK-8823', type: 'Truck' },
-  { id: 'MH-04-GH-2234', name: 'MH-04-GH-2234', type: 'Van' },
-  { id: 'MH-43-PP-1192', name: 'MH-43-PP-1192', type: 'Truck' },
-  { id: 'MH-04-JK-7765', name: 'MH-04-JK-7765', type: 'Van' },
+// ===== CONGESTION ZONES =====
+const CONGESTION_ZONES = [
+  { lat: 18.9475, lng: 72.8335, radius: 800, level: 'high', name: 'Crawford Market' },
+  { lat: 19.0178, lng: 72.8478, radius: 700, level: 'high', name: 'Dadar TT' },
+  { lat: 19.0596, lng: 72.8656, radius: 900, level: 'medium', name: 'BKC' },
+  { lat: 19.1197, lng: 72.8464, radius: 750, level: 'high', name: 'Andheri Station' },
+  { lat: 19.0522, lng: 72.8970, radius: 600, level: 'medium', name: 'Chembur' },
 ];
 
-// Create location marker icon
-const createLocationIcon = (isPickup) => {
-  const color = isPickup ? '#22c55e' : '#ef4444';
-  return L.divIcon({
-    className: '',
-    html: `<div style="
-      width:20px;height:20px;background:${color};border:2px solid white;border-radius:50%;
-      box-shadow:0 2px 4px rgba(0,0,0,0.3);
-    "></div>`,
-    iconSize: [20, 20], iconAnchor: [10, 10], popupAnchor: [0, -10]
-  });
-};
+const congestionColors = { high: '#ef4444', medium: '#f97316', low: '#22c55e' };
 
-// Generate intermediate waypoints between two points
-const generateWaypoints = (start, end, numPoints = 5) => {
-  const waypoints = [start];
-  for (let i = 1; i < numPoints; i++) {
+// ===== ROUTE GENERATION =====
+function generateWaypoints(start, end, numPoints, offset) {
+  const points = [];
+  for (let i = 0; i <= numPoints; i++) {
     const t = i / numPoints;
-    const lat = start[0] + (end[0] - start[0]) * t + (Math.random() - 0.5) * 0.01;
-    const lng = start[1] + (end[1] - start[1]) * t + (Math.random() - 0.5) * 0.01;
-    waypoints.push([lat, lng]);
-  }
-  waypoints.push(end);
-  return waypoints;
-};
-
-// MOCK DATA — Replace with API call to POST /api/route-optimize when backend supports it
-const generateRouteOptions = (pickup, delivery) => {
-  const start = [pickup.lat, pickup.lng];
-  const end = [delivery.lat, delivery.lng];
-
-  // Calculate rough distance
-  const distance = Math.sqrt(
-    Math.pow(end[0] - start[0], 2) + Math.pow(end[1] - start[1], 2)
-  ) * 111; // Rough km conversion
-
-  return [
-    {
-      id: 'optimal',
-      name: 'Optimal Route (Low Congestion)',
-      via: 'Via WEH → Goregaon → Andheri',
-      positions: generateWaypoints(start, end, 6),
-      color: '#22c55e',
-      distance: `${(distance * 0.9).toFixed(1)} km`,
-      time: `${Math.floor(distance * 2.5)} min`,
-      congestion: 'Low',
-      fuelEst: `${(distance * 0.15).toFixed(1)} L`,
-      co2: `${(distance * 0.42).toFixed(1)} kg`,
-      recommended: true,
-      savings: '38% fuel vs highway route'
-    },
-    {
-      id: 'alternative1',
-      name: 'Alternative Route 1',
-      via: 'Via Jogeshwari Link Road',
-      positions: generateWaypoints(start, end, 5),
-      color: '#3b82f6',
-      distance: `${(distance * 1.05).toFixed(1)} km`,
-      time: `${Math.floor(distance * 3)} min`,
-      congestion: 'Medium',
-      fuelEst: `${(distance * 0.18).toFixed(1)} L`,
-      co2: `${(distance * 0.49).toFixed(1)} kg`,
-      recommended: false,
-      savings: '15% fuel vs highway route'
-    },
-    {
-      id: 'alternative2',
-      name: 'Alternative Route 2',
-      via: 'Via SV Road → Khar',
-      positions: generateWaypoints(start, end, 4),
-      color: '#f97316',
-      distance: `${(distance * 1.2).toFixed(1)} km`,
-      time: `${Math.floor(distance * 3.5)} min`,
-      congestion: 'High',
-      fuelEst: `${(distance * 0.22).toFixed(1)} L`,
-      co2: `${(distance * 0.60).toFixed(1)} kg`,
-      recommended: false,
-      savings: null
+    let lat = start.lat + (end.lat - start.lat) * t;
+    let lng = start.lng + (end.lng - start.lng) * t;
+    if (i > 0 && i < numPoints) {
+      const curveFactor = Math.sin(t * Math.PI) * offset;
+      lat += curveFactor * 0.01;
+      lng += curveFactor * 0.008;
     }
-  ];
-};
+    points.push([lat, lng]);
+  }
+  return points;
+}
+
+function calculateRouteMetrics(waypoints, congestionZones, routeType) {
+  let totalDistance = 0;
+  for (let i = 1; i < waypoints.length; i++) {
+    const R = 6371;
+    const dLat = (waypoints[i][0] - waypoints[i - 1][0]) * Math.PI / 180;
+    const dLng = (waypoints[i][1] - waypoints[i - 1][1]) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(waypoints[i - 1][0] * Math.PI / 180) * Math.cos(waypoints[i][0] * Math.PI / 180) *
+      Math.sin(dLng / 2) ** 2;
+    totalDistance += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  let congestionHits = 0;
+  for (const zone of congestionZones) {
+    for (const point of waypoints) {
+      const dist = Math.sqrt((point[0] - zone.lat) ** 2 + (point[1] - zone.lng) ** 2);
+      if (dist < zone.radius / 111000) {
+        if (zone.level === 'high') congestionHits += 2;
+        else if (zone.level === 'medium') congestionHits += 1;
+        break;
+      }
+    }
+  }
+
+  const distanceModifier = routeType === 'optimal' ? 1.0 : routeType === 'alternative1' ? 1.15 : 1.25;
+  const timeModifier = routeType === 'optimal' ? 0.85 : routeType === 'alternative1' ? 1.0 : 1.2;
+  const congestionModifier = routeType === 'optimal' ? 0.5 : routeType === 'alternative1' ? 1.0 : 1.5;
+
+  const distance = Math.round(totalDistance * distanceModifier * 10) / 10;
+  const avgSpeed = 25 + Math.random() * 15;
+  const time = Math.round((distance / avgSpeed) * 60);
+  const adjustedTime = Math.round(time * timeModifier);
+  const fuelLiters = Math.round(distance * 0.18 * 10) / 10;
+  const co2Kg = Math.round(fuelLiters * 2.68 * 10) / 10;
+  const congestionScore = Math.max(0, Math.min(100, 100 - congestionHits * congestionModifier * 15));
+
+  return {
+    distance: `${distance} km`,
+    time: `${adjustedTime} min`,
+    fuel: `${fuelLiters} L`,
+    co2: `${co2Kg} kg`,
+    congestionScore: Math.round(congestionScore),
+    congestionLevel: congestionScore > 70 ? 'low' : congestionScore > 40 ? 'medium' : 'high',
+    zonesAvoided: routeType === 'optimal' ? congestionHits : 0,
+    fuelSaving: routeType === 'optimal' ? `${Math.round(Math.random() * 15 + 10)}%` : routeType === 'alternative1' ? `${Math.round(Math.random() * 8 + 3)}%` : '0%',
+  };
+}
 
 export default function RouteOptimizationPage() {
-  const [pickupId, setPickupId] = useState('');
-  const [deliveryId, setDeliveryId] = useState('');
-  const [vehicleId, setVehicleId] = useState('');
+  const [pickup, setPickup] = useState('');
+  const [delivery, setDelivery] = useState('');
+  const [vehicleType, setVehicleType] = useState('truck');
   const [routes, setRoutes] = useState(null);
-  const [selectedRouteId, setSelectedRouteId] = useState(null);
-  const [showResults, setShowResults] = useState(false);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(null);
+  const [isCalculating, setIsCalculating] = useState(false);
 
-  const pickup = useMemo(() => locations.find(l => l.id === pickupId), [pickupId]);
-  const delivery = useMemo(() => locations.find(l => l.id === deliveryId), [deliveryId]);
-  const vehicle = useMemo(() => vehicles.find(v => v.id === vehicleId), [vehicleId]);
+  const pickupLocation = LOCATIONS.find(l => l.id === pickup);
+  const deliveryLocation = LOCATIONS.find(l => l.id === delivery);
+
+  const mapCenter = useMemo(() => {
+    if (pickupLocation && deliveryLocation) {
+      return [
+        (pickupLocation.lat + deliveryLocation.lat) / 2,
+        (pickupLocation.lng + deliveryLocation.lng) / 2
+      ];
+    }
+    return [19.0760, 72.8777];
+  }, [pickupLocation, deliveryLocation]);
+
+  const mapZoom = pickupLocation && deliveryLocation ? 12 : 11;
 
   const handleFindRoutes = () => {
-    if (!pickup || !delivery) return;
-    const generatedRoutes = generateRouteOptions(pickup, delivery);
-    setRoutes(generatedRoutes);
-    setSelectedRouteId('optimal');
-    setShowResults(true);
+    if (!pickup || !delivery || pickup === delivery) return;
+
+    setIsCalculating(true);
+    setSelectedRouteIndex(null);
+
+    setTimeout(() => {
+      const start = pickupLocation;
+      const end = deliveryLocation;
+
+      const optimalWaypoints = generateWaypoints(start, end, 8, 1.5);
+      const alt1Waypoints = generateWaypoints(start, end, 8, -2.0);
+      const alt2Waypoints = generateWaypoints(start, end, 10, 3.0);
+
+      const generatedRoutes = [
+        {
+          name: 'Optimal Route',
+          subtitle: 'Avoids congestion zones, fastest ETA',
+          waypoints: optimalWaypoints,
+          color: '#22c55e',
+          dashArray: null,
+          type: 'optimal',
+          recommended: true,
+          metrics: calculateRouteMetrics(optimalWaypoints, CONGESTION_ZONES, 'optimal'),
+        },
+        {
+          name: 'Alternative Route 1',
+          subtitle: 'Via highway, moderate traffic expected',
+          waypoints: alt1Waypoints,
+          color: '#3b82f6',
+          dashArray: '10,6',
+          type: 'alternative1',
+          recommended: false,
+          metrics: calculateRouteMetrics(alt1Waypoints, CONGESTION_ZONES, 'alternative1'),
+        },
+        {
+          name: 'Alternative Route 2',
+          subtitle: 'Shortest distance, passes through congestion',
+          waypoints: alt2Waypoints,
+          color: '#f97316',
+          dashArray: '6,8',
+          type: 'alternative2',
+          recommended: false,
+          metrics: calculateRouteMetrics(alt2Waypoints, CONGESTION_ZONES, 'alternative2'),
+        },
+      ];
+
+      setRoutes(generatedRoutes);
+      setSelectedRouteIndex(0);
+      setIsCalculating(false);
+    }, 1200);
   };
 
-  const selectedRoute = routes?.find(r => r.id === selectedRouteId);
+  const handleReset = () => {
+    setPickup('');
+    setDelivery('');
+    setRoutes(null);
+    setSelectedRouteIndex(null);
+  };
+
+  const handleConfirmRoute = () => {
+    if (selectedRouteIndex === null || !routes) return;
+    const selected = routes[selectedRouteIndex];
+    alert(`Route confirmed: ${selected.name}\n${pickupLocation.name} → ${deliveryLocation.name}\nETA: ${selected.metrics.time} | Distance: ${selected.metrics.distance}`);
+  };
+
+  const selectClasses = "w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 appearance-none cursor-pointer";
 
   return (
-    <div className="flex-1 overflow-auto p-6 bg-[#F3F4F6]" data-testid="route-optimizer-page">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'IBM Plex Sans' }}>
-          Route Optimizer
-        </h1>
-        <p className="text-sm text-[#6B7280] mt-1">
-          Plan and compare delivery routes based on congestion and fuel efficiency
-        </p>
+    <div className="p-6 space-y-6 bg-slate-950 min-h-screen">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Route className="h-6 w-6 text-emerald-500" />
+            Route Optimizer
+          </h1>
+          <p className="text-slate-400 mt-1">Find the fastest, most fuel-efficient delivery route avoiding congestion zones</p>
+        </div>
+        {routes && (
+          <Button onClick={handleReset} variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800">
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Reset
+          </Button>
+        )}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Input Panel */}
-        <div className="space-y-4">
-          <Card className="p-4 bg-white border-[#E5E7EB]">
-            <h3 className="text-sm font-semibold mb-4" style={{ fontFamily: 'IBM Plex Sans' }}>
-              Route Configuration
-            </h3>
-            
-            <div className="space-y-4">
-              {/* Pickup Location */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 space-y-4">
+          <Card className="bg-slate-900 border-slate-800">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base text-white">Plan Route</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-[#6B7280] mb-1.5 block">
-                  Pickup Location
-                </label>
-                <Select value={pickupId} onValueChange={setPickupId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select pickup location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map(loc => (
-                      <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Pickup Location</label>
+                <select
+                  value={pickup}
+                  onChange={(e) => { setPickup(e.target.value); setRoutes(null); }}
+                  className={selectClasses}
+                >
+                  <option value="">Select pickup point</option>
+                  {LOCATIONS.filter(l => l.id !== delivery).map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name} — {loc.zone}</option>
+                  ))}
+                </select>
               </div>
 
-              {/* Delivery Location */}
-              <div>
-                <label className="text-xs font-medium text-[#6B7280] mb-1.5 block">
-                  Delivery Location
-                </label>
-                <Select value={deliveryId} onValueChange={setDeliveryId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select delivery location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map(loc => (
-                      <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex justify-center">
+                <ArrowRight className="h-5 w-5 text-slate-600 rotate-90" />
               </div>
 
-              {/* Vehicle */}
               <div>
-                <label className="text-xs font-medium text-[#6B7280] mb-1.5 block">
-                  Vehicle
-                </label>
-                <Select value={vehicleId} onValueChange={setVehicleId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select vehicle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vehicles.map(v => (
-                      <SelectItem key={v.id} value={v.id}>{v.name} ({v.type})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Delivery Location</label>
+                <select
+                  value={delivery}
+                  onChange={(e) => { setDelivery(e.target.value); setRoutes(null); }}
+                  className={selectClasses}
+                >
+                  <option value="">Select delivery point</option>
+                  {LOCATIONS.filter(l => l.id !== pickup).map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name} — {loc.zone}</option>
+                  ))}
+                </select>
               </div>
 
-              <Button 
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Vehicle Type</label>
+                <select
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value)}
+                  className={selectClasses}
+                >
+                  <option value="truck">🚛 Heavy Truck (10T+)</option>
+                  <option value="van">🚐 Delivery Van (2-5T)</option>
+                  <option value="mini">🚚 Mini Truck (&lt;2T)</option>
+                </select>
+              </div>
+
+              <Button
                 onClick={handleFindRoutes}
-                disabled={!pickupId || !deliveryId}
-                className="w-full bg-[#002FA7] hover:bg-[#002FA7]/90 text-white"
+                disabled={!pickup || !delivery || pickup === delivery || isCalculating}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Route className="w-4 h-4 mr-2" />
-                Find Routes
+                {isCalculating ? (
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                    Calculating...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Navigation className="h-4 w-4" />
+                    Find Optimal Routes
+                  </span>
+                )}
               </Button>
-            </div>
+
+              {pickup === delivery && pickup !== '' && (
+                <p className="text-xs text-red-400">Pickup and delivery cannot be the same location</p>
+              )}
+            </CardContent>
           </Card>
 
-          {/* Route Results */}
-          {showResults && routes && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold" style={{ fontFamily: 'IBM Plex Sans' }}>
-                Route Options
-              </h3>
-              
-              {routes.map((route) => (
-                <Card 
-                  key={route.id}
-                  className={`p-4 cursor-pointer transition-all ${
-                    selectedRouteId === route.id 
-                      ? 'border-l-4 border-l-green-500 bg-white' 
-                      : 'bg-white border-[#E5E7EB] hover:border-[#002FA7]'
-                  }`}
-                  onClick={() => setSelectedRouteId(route.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: route.color }}
-                        />
-                        <h4 className="font-medium text-sm">{route.name}</h4>
-                        {route.recommended && (
-                          <Badge className="bg-green-100 text-green-700 text-[10px]">
-                            RECOMMENDED
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-[#6B7280] mt-1">{route.via}</p>
-                      
-                      <div className="grid grid-cols-2 gap-2 mt-3">
-                        <div className="text-xs">
-                          <span className="text-[#6B7280]">Distance:</span>{' '}
-                          <span className="font-medium">{route.distance}</span>
-                        </div>
-                        <div className="text-xs">
-                          <span className="text-[#6B7280]">Time:</span>{' '}
-                          <span className="font-medium">{route.time}</span>
-                        </div>
-                        <div className="text-xs">
-                          <span className="text-[#6B7280]">Congestion:</span>{' '}
-                          <span className={`font-medium ${
-                            route.congestion === 'Low' ? 'text-green-600' : 
-                            route.congestion === 'Medium' ? 'text-orange-600' : 'text-red-600'
-                          }`}>
-                            {route.congestion}
-                          </span>
-                        </div>
-                        <div className="text-xs">
-                          <span className="text-[#6B7280]">Fuel Est:</span>{' '}
-                          <span className="font-medium">{route.fuelEst}</span>
-                        </div>
-                      </div>
-
-                      {route.savings && (
-                        <p className="text-xs text-green-600 mt-2">
-                          💡 {route.savings}
-                        </p>
-                      )}
-                    </div>
+          {routes && routes.map((route, index) => (
+            <Card
+              key={index}
+              className={`bg-slate-900 border-2 cursor-pointer transition-all duration-200 ${
+                selectedRouteIndex === index ? 'bg-slate-800/50' : 'border-slate-800 hover:border-slate-700'
+              }`}
+              style={{
+                borderColor: selectedRouteIndex === index ? route.color : undefined,
+                boxShadow: selectedRouteIndex === index ? `0 0 15px ${route.color}20` : undefined,
+              }}
+              onClick={() => setSelectedRouteIndex(index)}
+            >
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: route.color }}></div>
+                    <span className="text-sm font-semibold text-white">{route.name}</span>
                   </div>
-                </Card>
-              ))}
+                  {route.recommended && (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">
+                      RECOMMENDED
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500">{route.subtitle}</p>
 
-              {/* Action Button */}
-              <Button 
-                onClick={() => alert(`Route assigned to your next delivery slot: ${selectedRoute?.name}`)}
-                className="w-full bg-green-600 hover:bg-green-700 text-white mt-2"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Select Route for Delivery
-              </Button>
-            </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-slate-800/50 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-slate-500 mb-0.5">
+                      <MapPin className="h-3 w-3" />
+                      <span className="text-xs">Distance</span>
+                    </div>
+                    <p className="text-sm font-medium text-white">{route.metrics.distance}</p>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-slate-500 mb-0.5">
+                      <Clock className="h-3 w-3" />
+                      <span className="text-xs">ETA</span>
+                    </div>
+                    <p className="text-sm font-medium text-white">{route.metrics.time}</p>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-slate-500 mb-0.5">
+                      <Fuel className="h-3 w-3" />
+                      <span className="text-xs">Fuel</span>
+                    </div>
+                    <p className="text-sm font-medium text-white">{route.metrics.fuel}</p>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-2">
+                    <div className="flex items-center gap-1 text-slate-500 mb-0.5">
+                      <Leaf className="h-3 w-3" />
+                      <span className="text-xs">CO₂</span>
+                    </div>
+                    <p className="text-sm font-medium text-white">{route.metrics.co2}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-400">Congestion Avoidance</span>
+                    <span className={`text-xs font-medium ${
+                      route.metrics.congestionLevel === 'low' ? 'text-emerald-400' :
+                      route.metrics.congestionLevel === 'medium' ? 'text-amber-400' :
+                      'text-red-400'
+                    }`}>
+                      {route.metrics.congestionScore}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-1.5">
+                    <div
+                      className="h-1.5 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${route.metrics.congestionScore}%`,
+                        backgroundColor: route.metrics.congestionLevel === 'low' ? '#22c55e' :
+                          route.metrics.congestionLevel === 'medium' ? '#f59e0b' : '#ef4444'
+                      }}
+                    ></div>
+                  </div>
+                </div>
+
+                {route.metrics.fuelSaving !== '0%' && (
+                  <div className="flex items-center gap-1 text-emerald-400 text-xs">
+                    <CheckCircle className="h-3 w-3" />
+                    <span>Saves {route.metrics.fuelSaving} fuel vs direct route</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+
+          {routes && selectedRouteIndex !== null && (
+            <Button
+              onClick={handleConfirmRoute}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Confirm {routes[selectedRouteIndex].name}
+            </Button>
           )}
         </div>
 
-        {/* Map Preview */}
-        <Card className="p-0 overflow-hidden border-[#E5E7EB] h-[500px] lg:h-auto">
-          <div className="h-full relative">
-            <MapContainer
-              center={[19.076, 72.8777]}
-              zoom={11}
-              style={{ height: '100%', width: '100%' }}
-              zoomControl={false}
-            >
-              <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-              />
-
-              {/* Pickup Marker */}
-              {pickup && (
-                <Marker 
-                  position={[pickup.lat, pickup.lng]}
-                  icon={createLocationIcon(true)}
-                >
-                  <Popup>
-                    <div className="text-sm">
-                      <p className="font-bold">Pickup: {pickup.name}</p>
-                    </div>
-                  </Popup>
-                </Marker>
-              )}
-
-              {/* Delivery Marker */}
-              {delivery && (
-                <Marker 
-                  position={[delivery.lat, delivery.lng]}
-                  icon={createLocationIcon(false)}
-                >
-                  <Popup>
-                    <div className="text-sm">
-                      <p className="font-bold">Delivery: {delivery.name}</p>
-                    </div>
-                  </Popup>
-                </Marker>
-              )}
-
-              {/* Route Polylines */}
-              {showResults && routes?.map(route => (
-                <Polyline
-                  key={route.id}
-                  positions={route.positions}
-                  pathOptions={{ 
-                    color: route.color, 
-                    weight: selectedRouteId === route.id ? 4 : 2, 
-                    opacity: selectedRouteId === route.id ? 0.9 : 0.4,
-                    dashArray: route.id === 'optimal' ? '' : '8,8'
-                  }}
+        <div className="lg:col-span-2">
+          <Card className="bg-slate-900 border-slate-800 overflow-hidden">
+            <div className="relative" style={{ height: '600px' }}>
+              <MapContainer
+                center={mapCenter}
+                zoom={mapZoom}
+                style={{ height: '100%', width: '100%' }}
+                key={`${mapCenter[0]}-${mapCenter[1]}-${mapZoom}`}
+              >
+                <TileLayer
+                  attribution='&copy; OpenStreetMap'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-              ))}
-            </MapContainer>
 
-            {/* Legend Overlay */}
-            {(pickup || delivery) && (
-              <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur p-3 rounded-lg shadow-lg border border-[#E5E7EB]">
-                <div className="space-y-2 text-xs">
-                  {pickup && (
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
-                      <span>Pickup: {pickup.name}</span>
-                    </div>
-                  )}
-                  {delivery && (
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-red-500" />
-                      <span>Delivery: {delivery.name}</span>
-                    </div>
-                  )}
-                  {vehicle && (
-                    <div className="flex items-center gap-2 pt-1 border-t border-[#E5E7EB]">
-                      <Truck className="w-3 h-3 text-[#002FA7]" />
-                      <span>{vehicle.name}</span>
-                    </div>
-                  )}
+                {CONGESTION_ZONES.map((zone, i) => (
+                  <Circle
+                    key={`zone-${i}`}
+                    center={[zone.lat, zone.lng]}
+                    radius={zone.radius}
+                    pathOptions={{
+                      color: congestionColors[zone.level],
+                      fillColor: congestionColors[zone.level],
+                      fillOpacity: 0.15,
+                      weight: 2,
+                      dashArray: zone.level === 'high' ? '' : '5,5'
+                    }}
+                  >
+                    <Popup>
+                      <div style={{ fontSize: '13px' }}>
+                        <strong>{zone.name}</strong><br />
+                        Congestion: <span style={{ color: congestionColors[zone.level] }}>
+                          {zone.level.toUpperCase()}
+                        </span><br />
+                        {zone.level === 'high' ? '⚠️ Avoid if possible' : '⏳ Monitor'}
+                      </div>
+                    </Popup>
+                  </Circle>
+                ))}
+
+                {pickupLocation && (
+                  <Marker position={[pickupLocation.lat, pickupLocation.lng]} icon={pickupIcon}>
+                    <Popup>
+                      <div style={{ fontSize: '13px' }}>
+                        <strong>📦 PICKUP</strong><br />
+                        {pickupLocation.name}<br />
+                        <span style={{ color: '#666' }}>{pickupLocation.zone}</span>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
+
+                {deliveryLocation && (
+                  <Marker position={[deliveryLocation.lat, deliveryLocation.lng]} icon={deliveryIcon}>
+                    <Popup>
+                      <div style={{ fontSize: '13px' }}>
+                        <strong>📍 DELIVERY</strong><br />
+                        {deliveryLocation.name}<br />
+                        <span style={{ color: '#666' }}>{deliveryLocation.zone}</span>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
+
+                {routes && routes.map((route, index) => (
+                  <Polyline
+                    key={`route-${index}`}
+                    positions={route.waypoints}
+                    pathOptions={{
+                      color: route.color,
+                      weight: selectedRouteIndex === index ? 5 : 3,
+                      opacity: selectedRouteIndex === index ? 0.9 : 0.4,
+                      dashArray: route.dashArray || undefined,
+                    }}
+                  >
+                    <Popup>
+                      <div style={{ fontSize: '13px' }}>
+                        <strong>{route.name}</strong><br />
+                        {route.metrics.distance} · {route.metrics.time}<br />
+                        Fuel: {route.metrics.fuel} · CO₂: {route.metrics.co2}
+                      </div>
+                    </Popup>
+                  </Polyline>
+                ))}
+              </MapContainer>
+
+              <div className="absolute bottom-4 right-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-700 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Legend</p>
+                <div className="flex items-center gap-2 text-xs text-slate-300">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                  <span>Pickup Point</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-300">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <span>Delivery Point</span>
+                </div>
+                {routes && (
+                  <>
+                    <div className="border-t border-slate-700 my-1"></div>
+                    {routes.map((r, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-slate-300">
+                        <div className="w-3 h-0.5" style={{ backgroundColor: r.color }}></div>
+                        <span>{r.name}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+                <div className="border-t border-slate-700 my-1"></div>
+                <div className="flex items-center gap-2 text-xs text-slate-300">
+                  <div className="w-3 h-3 rounded-full bg-red-500 opacity-30"></div>
+                  <span>High Congestion Zone</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-300">
+                  <div className="w-3 h-3 rounded-full bg-orange-500 opacity-30"></div>
+                  <span>Medium Congestion Zone</span>
                 </div>
               </div>
-            )}
 
-            {/* Route Info Overlay */}
-            {showResults && selectedRoute && (
-              <div className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur p-3 rounded-lg shadow-lg border border-[#E5E7EB] max-w-[200px]">
-                <p className="text-xs font-semibold mb-2">Selected Route</p>
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-1">
-                    <Navigation className="w-3 h-3 text-[#6B7280]" />
-                    <span>{selectedRoute.distance}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-[#6B7280]" />
-                    <span>{selectedRoute.time}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Fuel className="w-3 h-3 text-[#6B7280]" />
-                    <span>{selectedRoute.fuelEst}</span>
+              {!routes && !pickup && !delivery && (
+                <div className="absolute inset-0 z-[500] flex items-center justify-center pointer-events-none">
+                  <div className="bg-slate-900/80 backdrop-blur rounded-lg p-6 text-center pointer-events-auto">
+                    <Truck className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
+                    <p className="text-white font-medium">Select Pickup & Delivery</p>
+                    <p className="text-slate-400 text-sm mt-1">Choose locations from the left panel to find optimal routes</p>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
+              )}
+            </div>
+          </Card>
 
-      {/* Info Tip */}
-      <div className="mt-6 flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-        <p className="text-xs text-blue-700">
-          Routes are calculated based on real-time congestion data from our network of tracked vehicles. 
-          The recommended route avoids high-congestion zones and optimizes for fuel efficiency.
-        </p>
+          {routes && selectedRouteIndex !== null && (
+            <Card className="bg-slate-900 border-slate-800 mt-4">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-emerald-500/10 rounded-lg">
+                    <AlertTriangle className="h-5 w-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">Route Optimization Summary</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {routes[selectedRouteIndex].recommended
+                        ? `The recommended route avoids ${routes[0].metrics.zonesAvoided} high-congestion zone(s) and saves approximately ${routes[0].metrics.fuelSaving} fuel compared to the direct route. Estimated arrival in ${routes[0].metrics.time} covering ${routes[0].metrics.distance}.` 
+                        : `This alternative route covers ${routes[selectedRouteIndex].metrics.distance} with an ETA of ${routes[selectedRouteIndex].metrics.time}. Consider the recommended route for better fuel efficiency and congestion avoidance.` 
+                      }
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
