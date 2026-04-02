@@ -30,8 +30,12 @@ export default function AuthPage() {
     setError('');
     setLoading(true);
     try {
-      await login(loginForm.email, loginForm.password);
-      navigate('/');
+      const user = await login(loginForm.email, loginForm.password);
+      // Navigate based on role
+      if (user?.role === 'admin') navigate('/admin');
+      else if (user?.role === 'driver') navigate('/driver');
+      else if (user?.role === 'organization') navigate('/organization');
+      else navigate('/admin');
     } catch (err) {
       setError(formatError(err.response?.data?.detail) || err.message);
     } finally {
@@ -44,8 +48,12 @@ export default function AuthPage() {
     setError('');
     setLoading(true);
     try {
-      await register(regForm.name, regForm.email, regForm.password, regForm.role, regForm.orgName);
-      navigate('/');
+      const user = await register(regForm.name, regForm.email, regForm.password, regForm.role, regForm.orgName);
+      // Navigate based on role
+      if (user?.role === 'admin') navigate('/admin');
+      else if (user?.role === 'driver') navigate('/driver');
+      else if (user?.role === 'organization') navigate('/organization');
+      else navigate('/admin');
     } catch (err) {
       setError(formatError(err.response?.data?.detail) || err.message);
     } finally {

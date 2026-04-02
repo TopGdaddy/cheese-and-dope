@@ -32,16 +32,18 @@ function RoleRedirect() {
   if (user?.role === 'admin') return <Navigate to="/admin" replace />;
   if (user?.role === 'driver') return <Navigate to="/driver" replace />;
   if (user?.role === 'organization') return <Navigate to="/organization" replace />;
-  return <Navigate to="/map" replace />;
-}
-
-function DashboardRoute() {
-  return <RoleRedirect />;
+  return <Navigate to="/admin" replace />;
 }
 
 function LandingPageRoute() {
   const { user } = useAuth();
-  if (user && user !== false) return <Navigate to="/dashboard" replace />;
+  if (user && user !== false) {
+    // Redirect based on role directly, no intermediate /dashboard
+    if (user?.role === 'admin') return <Navigate to="/admin" replace />;
+    if (user?.role === 'driver') return <Navigate to="/driver" replace />;
+    if (user?.role === 'organization') return <Navigate to="/organization" replace />;
+    return <Navigate to="/admin" replace />;
+  }
   return <LandingPage />;
 }
 
@@ -85,7 +87,27 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+<<<<<<< Updated upstream
         <AppRoutes />
+=======
+        <Routes>
+          <Route path="/" element={<LandingPageRoute />} />
+          <Route path="/login" element={<AuthPage />} />
+          <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+            <Route index element={<RoleRedirect />} />
+            <Route path="/map" element={<LiveMapPage />} />
+            <Route path="/slots" element={<SlotsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/organization" element={<OrgDashboard />} />
+            <Route path="/driver" element={<DriverPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/route-optimizer" element={<RouteOptimizationPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+>>>>>>> Stashed changes
       </AuthProvider>
     </BrowserRouter>
   );
