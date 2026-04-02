@@ -1,6 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
+// Enable credentials globally for all axios requests
+axios.defaults.withCredentials = true;
+
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 const API = API_URL ? `${API_URL}/api` : null;
 const AuthContext = createContext(null);

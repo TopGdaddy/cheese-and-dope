@@ -48,7 +48,7 @@ export default function ReportsPage() {
     try {
       const params = {};
       if (filter !== 'all') params.status = filter;
-      const { data } = await axios.get(`${API}/reports`, { params });
+      const { data } = await axios.get(`${API}/reports`, { params, withCredentials: true });
       setReports(data);
     } catch (err) {
       console.error(err);

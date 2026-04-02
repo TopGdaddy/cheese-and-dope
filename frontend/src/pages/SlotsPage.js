@@ -33,7 +33,8 @@ export default function SlotsPage() {
   const fetchSlots = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API}/slots`, {
-        params: { date: selectedDate, route: selectedRoute }
+        params: { date: selectedDate, route: selectedRoute },
+        withCredentials: true
       });
       setSlots(data);
     } catch (err) {

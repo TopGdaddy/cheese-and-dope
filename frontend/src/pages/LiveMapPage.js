@@ -109,8 +109,8 @@ export default function LiveMapPage() {
   const fetchInitialData = useCallback(async () => {
     try {
       const [posRes, repRes] = await Promise.all([
-        axios.get(`${API}/trucks/live-positions`),
-        axios.get(`${API}/reports`)
+        axios.get(`${API}/trucks/live-positions`, { withCredentials: true }),
+        axios.get(`${API}/reports`, { withCredentials: true })
       ]);
       setTrucks(posRes.data);
       setReports(repRes.data);
@@ -189,7 +189,7 @@ export default function LiveMapPage() {
     // Refresh reports periodically (less critical, 30s interval)
     const reportInterval = setInterval(async () => {
       try {
-        const { data } = await axios.get(`${API}/reports`);
+        const { data } = await axios.get(`${API}/reports`, { withCredentials: true });
         setReports(data);
       } catch (err) {
         console.error(err);
