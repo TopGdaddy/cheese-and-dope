@@ -1,4 +1,4 @@
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import AdminAnalytics from '../components/analytics/AdminAnalytics';
 import DriverAnalytics from '../components/analytics/DriverAnalytics';
 import OrgAnalytics from '../components/analytics/OrgAnalytics';

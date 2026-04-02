@@ -6,7 +6,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { TrendingUp, TrendingDown, IndianRupee, Truck, Fuel, Leaf, Calendar, Target, CreditCard, Building2, Users, Package } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const CHART_THEME = {
   grid: { stroke: '#1e293b' },

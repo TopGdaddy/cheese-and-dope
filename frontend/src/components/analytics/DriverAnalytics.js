@@ -6,7 +6,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { TrendingUp, IndianRupee, Navigation, Fuel, Clock, MapPin, Star, Zap, Calendar, Award } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const CHART_THEME = {
   grid: { stroke: '#1e293b' },
