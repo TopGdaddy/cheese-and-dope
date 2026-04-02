@@ -2,41 +2,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Map, Calendar, AlertTriangle, LayoutDashboard, Truck, Navigation, LogOut, PanelLeftClose, PanelLeft, Bell, BarChart3, Route } from 'lucide-react';
 import { useState, useEffect } from 'react';
-
-const navConfig = {
-  admin: [
-    { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/map', label: 'Live Map', icon: Map },
-    { path: '/slots', label: 'Delivery Slots', icon: Calendar },
-    { path: '/reports', label: 'Reports', icon: AlertTriangle },
-    { path: '/notifications', label: 'Notifications', icon: Bell },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { path: '/route-optimizer', label: 'Route Optimizer', icon: Route },
-  ],
-  driver: [
-    { path: '/driver', label: 'Trip Control', icon: Navigation },
-    { path: '/map', label: 'Live Map', icon: Map },
-    { path: '/notifications', label: 'Notifications', icon: Bell },
-    { path: '/route-optimizer', label: 'Route Optimizer', icon: Route },
-  ],
-  organization: [
-    { path: '/organization', label: 'Fleet', icon: Truck },
-    { path: '/map', label: 'Live Map', icon: Map },
-    { path: '/slots', label: 'Delivery Slots', icon: Calendar },
-    { path: '/reports', label: 'Reports', icon: AlertTriangle },
-    { path: '/notifications', label: 'Notifications', icon: Bell },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { path: '/route-optimizer', label: 'Route Optimizer', icon: Route },
-  ],
-  regular: [
-    { path: '/map', label: 'Live Map', icon: Map },
-    { path: '/slots', label: 'Delivery Slots', icon: Calendar },
-    { path: '/reports', label: 'Reports', icon: AlertTriangle },
-    { path: '/notifications', label: 'Notifications', icon: Bell },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { path: '/route-optimizer', label: 'Route Optimizer', icon: Route },
-  ],
-};
+import { getNavigationForRole, getDefaultPath } from '../config/navigationConfig';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -73,7 +39,10 @@ export default function Sidebar() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [location.pathname]); // Refresh when navigating
 
-  const items = navConfig[user?.role] || navConfig.regular;
+  const role = user?.role || 'regular';
+  const navSections = getNavigationForRole(role);
+  // Flatten sections for simple rendering (keeping existing structure)
+  const items = navSections.flatMap(section => section.items);
 
   const handleLogout = async () => {
     await logout();

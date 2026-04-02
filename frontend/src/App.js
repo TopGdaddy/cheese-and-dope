@@ -2,6 +2,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import Sidebar from "@/components/Sidebar";
 import AuthPage from "@/pages/AuthPage";
 import LandingPage from "@/pages/LandingPage";
@@ -14,6 +15,8 @@ import DriverPage from "@/pages/DriverPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import RouteOptimizationPage from "@/pages/RouteOptimizationPage";
+import RegularDashboard from "@/pages/RegularDashboard";
+import { getDefaultPath } from "@/config/navigationConfig";
 
 function DashboardLayout() {
   return (
@@ -29,20 +32,13 @@ function DashboardLayout() {
 function RoleRedirect() {
   const { user } = useAuth();
   if (!user || user === false) return <Navigate to="/login" replace />;
-  if (user?.role === 'admin') return <Navigate to="/admin" replace />;
-  if (user?.role === 'driver') return <Navigate to="/driver" replace />;
-  if (user?.role === 'organization') return <Navigate to="/organization" replace />;
-  return <Navigate to="/admin" replace />;
+  return <Navigate to={getDefaultPath(user.role)} replace />;
 }
 
 function LandingPageRoute() {
   const { user } = useAuth();
   if (user && user !== false) {
-    // Redirect based on role directly, no intermediate /dashboard
-    if (user?.role === 'admin') return <Navigate to="/admin" replace />;
-    if (user?.role === 'driver') return <Navigate to="/driver" replace />;
-    if (user?.role === 'organization') return <Navigate to="/organization" replace />;
-    return <Navigate to="/admin" replace />;
+    return <Navigate to={getDefaultPath(user.role)} replace />;
   }
   return <LandingPage />;
 }
@@ -63,20 +59,53 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* ===== PUBLIC ROUTES ===== */}
       <Route path="/" element={<LandingPageRoute />} />
       <Route path="/login" element={<AuthPage />} />
+
+      {/* ===== PROTECTED ROUTES (inside layout with sidebar) ===== */}
       <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         <Route index element={<RoleRedirect />} />
-        <Route path="/map" element={<LiveMapPage />} />
-        <Route path="/slots" element={<SlotsPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/organization" element={<OrgDashboard />} />
-        <Route path="/driver" element={<DriverPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/route-optimizer" element={<RouteOptimizationPage />} />
+
+        {/* ADMIN ROUTES */}
+        <Route element={<RoleProtectedRoute allowedRoles={['admin']} />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+
+        {/* DRIVER ROUTES */}
+        <Route element={<RoleProtectedRoute allowedRoles={['driver']} />}>
+          <Route path="/driver" element={<DriverPage />} />
+        </Route>
+
+        {/* ORGANIZATION ROUTES */}
+        <Route element={<RoleProtectedRoute allowedRoles={['organization']} />}>
+          <Route path="/organization" element={<OrgDashboard />} />
+        </Route>
+
+        {/* REGULAR USER ROUTES */}
+        <Route element={<RoleProtectedRoute allowedRoles={['regular']} />}>
+          <Route path="/dashboard" element={<RegularDashboard />} />
+        </Route>
+
+        {/* SHARED ROUTES — multiple roles */}
+        <Route element={<RoleProtectedRoute allowedRoles={['admin', 'driver', 'organization', 'regular']} />}>
+          <Route path="/map" element={<LiveMapPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
+        </Route>
+
+        <Route element={<RoleProtectedRoute allowedRoles={['admin', 'driver', 'organization']} />}>
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/route-optimizer" element={<RouteOptimizationPage />} />
+        </Route>
+
+        <Route element={<RoleProtectedRoute allowedRoles={['admin', 'organization']} />}>
+          <Route path="/slots" element={<SlotsPage />} />
+        </Route>
+
       </Route>
+
+      {/* ===== CATCH ALL ===== */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
