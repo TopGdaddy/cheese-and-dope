@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Users, Truck, AlertTriangle, Calendar, Leaf, TrendingDown, Trash2 } from 'lucide-react';
+import { Users, Truck, AlertTriangle, Calendar, Leaf, TrendingDown, Trash2, Loader2, MapPin, BarChart3, FileText, Shield } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -25,21 +26,36 @@ function StatCard({ icon: Icon, label, value, sub, color }) {
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
+  const [trucks, setTrucks] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
 
   const fetchData = useCallback(async () => {
     try {
-      const [s, u, r] = await Promise.all([
+      setLoading(true);
+      const [s, u, r, t, b] = await Promise.allSettled([
         axios.get(`${API}/admin/stats`, { withCredentials: true }),
         axios.get(`${API}/admin/users`, { withCredentials: true }),
-        axios.get(`${API}/reports`, { withCredentials: true })
+        axios.get(`${API}/reports`, { withCredentials: true }),
+        axios.get(`${API}/trucks/live-positions`, { withCredentials: true }),
+        axios.get(`${API}/slots/bookings`, { withCredentials: true })
       ]);
-      setStats(s.data);
-      setUsers(u.data);
-      setReports(r.data);
+      
+      if (s.status === 'fulfilled') setStats(s.value.data);
+      if (u.status === 'fulfilled') setUsers(u.value.data);
+      if (r.status === 'fulfilled') setReports(r.value.data);
+      if (t.status === 'fulfilled') setTrucks(t.value.data || []);
+      if (b.status === 'fulfilled') setBookings((b.value.data || []).slice(-5).reverse());
+      
+      setError(null);
     } catch (err) {
       console.error(err);
+      setError('Failed to load some dashboard data');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -73,13 +89,59 @@ export default function AdminDashboard() {
     { name: '6PM', trucks: 5, reports: 1 },
   ];
 
-  if (!stats) return <div className="flex-1 flex items-center justify-center text-[#6B7280]">Loading...</div>;
+  if (loading && !stats) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[#F3F4F6] min-h-screen">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#002FA7] mx-auto mb-3" />
+          <p className="text-[#6B7280]">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-auto p-6 bg-[#F3F4F6]" data-testid="admin-dashboard">
-      <h1 className="text-2xl font-bold tracking-tight mb-6" style={{ fontFamily: 'IBM Plex Sans' }}>
-        Admin Dashboard
-      </h1>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" style={{ fontFamily: 'IBM Plex Sans' }}>
+            <Shield className="h-6 w-6 text-[#002FA7]" />
+            Admin Dashboard
+          </h1>
+          <p className="text-sm text-[#6B7280] mt-1">Platform overview and system management</p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        <Link to="/slots">
+          <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+            <Calendar className="h-4 w-4 mr-2" /> Manage Slots
+          </Button>
+        </Link>
+        <Link to="/map">
+          <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+            <MapPin className="h-4 w-4 mr-2" /> Live Map
+          </Button>
+        </Link>
+        <Link to="/analytics">
+          <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+            <BarChart3 className="h-4 w-4 mr-2" /> Analytics
+          </Button>
+        </Link>
+        <Link to="/reports">
+          <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+            <FileText className="h-4 w-4 mr-2" /> Reports
+          </Button>
+        </Link>
+      </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -194,6 +256,58 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Row: Active Trucks + Recent Bookings */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        {/* Active Trucks */}
+        <div className="bg-white border border-[#E5E7EB]">
+          <div className="px-4 py-3 border-b border-[#E5E7EB]">
+            <h3 className="text-sm font-bold" style={{ fontFamily: 'IBM Plex Sans' }}>Active Trucks ({trucks.length})</h3>
+          </div>
+          <div className="max-h-[250px] overflow-y-auto">
+            {trucks.length === 0 ? (
+              <p className="p-4 text-sm text-[#6B7280] text-center">No active trucks</p>
+            ) : (
+              trucks.slice(0, 8).map((truck, i) => (
+                <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB]">
+                  <div>
+                    <p className="text-sm font-medium">{truck.driver_name}</p>
+                    <p className="text-xs text-[#6B7280]">{truck.route_name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-[#10B981] font-mono">{truck.speed} km/h</p>
+                    <Badge className={`text-[10px] ${truck.is_mock ? 'bg-[#F3F4F6] text-[#6B7280]' : 'bg-red-50 text-red-700'}`}>
+                      {truck.is_mock ? 'Simulated' : 'Live'}
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Recent Bookings */}
+        <div className="bg-white border border-[#E5E7EB]">
+          <div className="px-4 py-3 border-b border-[#E5E7EB]">
+            <h3 className="text-sm font-bold" style={{ fontFamily: 'IBM Plex Sans' }}>Recent Bookings</h3>
+          </div>
+          <div className="max-h-[250px] overflow-y-auto">
+            {bookings.length === 0 ? (
+              <p className="p-4 text-sm text-[#6B7280] text-center">No bookings yet</p>
+            ) : (
+              bookings.map((booking, i) => (
+                <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB]">
+                  <div>
+                    <p className="text-sm font-medium">{booking.user_name || 'Unknown'}</p>
+                    <p className="text-xs text-[#6B7280] font-mono">{booking.slot_id?.slice(0, 8)}...</p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px]">{booking.status}</Badge>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

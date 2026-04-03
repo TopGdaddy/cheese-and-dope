@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import { Badge } from '../components/ui/badge';
-import { Truck, Calendar, Clock, Fuel, CheckCircle, CreditCard } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Truck, Calendar, Clock, Fuel, CheckCircle, CreditCard, Users, MapPin, Route, BarChart3, Loader2, Building2, UserCheck } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -50,39 +52,109 @@ export default function OrgDashboard() {
   const [bookings, setBookings] = useState([]);
   const [credits, setCredits] = useState(null);
 
+  const [drivers, setDrivers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const fetchData = useCallback(async () => {
     try {
-      const [s, f, b, c] = await Promise.all([
+      setLoading(true);
+      const [s, f, b, c, d] = await Promise.allSettled([
         axios.get(`${API}/org/stats`, { withCredentials: true }),
         axios.get(`${API}/org/fleet`, { withCredentials: true }),
         axios.get(`${API}/slots/bookings`, { withCredentials: true }),
-        axios.get(`${API}/org/credits`, { withCredentials: true })
+        axios.get(`${API}/org/credits`, { withCredentials: true }),
+        axios.get(`${API}/org/drivers`, { withCredentials: true })
       ]);
-      setStats(s.data);
-      setFleet(f.data);
-      setBookings(b.data);
-      setCredits(c.data);
+      
+      if (s.status === 'fulfilled') setStats(s.value.data);
+      if (f.status === 'fulfilled') setFleet(f.value.data);
+      if (b.status === 'fulfilled') setBookings(b.value.data);
+      if (c.status === 'fulfilled') setCredits(c.value.data);
+      if (d.status === 'fulfilled') setDrivers(d.value.data || []);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (!stats) return <div className="flex-1 flex items-center justify-center text-[#6B7280]">Loading...</div>;
+  if (loading || !stats) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[#F3F4F6] min-h-screen">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#002FA7] mx-auto mb-3" />
+          <p className="text-[#6B7280]">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const creditBalance = credits?.credits ?? 0;
+  const activeDrivers = drivers.filter(d => d.is_active).length;
 
   return (
     <div className="flex-1 overflow-auto p-6 bg-[#F3F4F6]" data-testid="org-dashboard">
-      <h1 className="text-2xl font-bold tracking-tight mb-6" style={{ fontFamily: 'IBM Plex Sans' }}>
-        Fleet Dashboard
-      </h1>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" style={{ fontFamily: 'IBM Plex Sans' }}>
+            <Building2 className="h-6 w-6 text-[#002FA7]" />
+            Organization Dashboard
+          </h1>
+          <p className="text-sm text-[#6B7280] mt-1">Manage your fleet, drivers, and delivery bookings</p>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        <Link to="/slots">
+          <Button className="bg-[#002FA7] hover:bg-[#002FA7]/90 text-white">
+            <Calendar className="h-4 w-4 mr-2" /> Book Delivery Slots
+          </Button>
+        </Link>
+        <Link to="/org/drivers">
+          <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+            <UserCheck className="h-4 w-4 mr-2" /> Manage Drivers
+          </Button>
+        </Link>
+        <Link to="/route-optimizer">
+          <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+            <Route className="h-4 w-4 mr-2" /> Route Optimizer
+          </Button>
+        </Link>
+        <Link to="/analytics">
+          <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+            <BarChart3 className="h-4 w-4 mr-2" /> Analytics
+          </Button>
+        </Link>
+        <Link to="/map">
+          <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+            <MapPin className="h-4 w-4 mr-2" /> Live Map
+          </Button>
+        </Link>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <CreditBalanceCard credits={credits?.credits ?? null} totalUsed={credits?.total_used ?? null} />
-        <StatCard icon={Truck} label="Active Trucks" value={stats.active_trucks} sub="On the road" color="#002FA7" />
-        <StatCard icon={Calendar} label="Bookings" value={stats.total_bookings} sub="Total slot bookings" color="#10B981" />
-        <StatCard icon={CheckCircle} label="Completion" value={`${stats.delivery_completion_rate}%`} sub="Delivery success rate" color="#FACA15" />
-        <StatCard icon={Fuel} label="Fuel Saved" value={`${stats.fuel_saved_liters}L`} sub="Via optimized routing" color="#E02424" />
+        {/* Credits Card with color coding */}
+        <div className={`bg-white p-4 stat-card border ${creditBalance < 10 ? 'border-red-300' : creditBalance < 20 ? 'border-amber-300' : 'border-[#E5E7EB]'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className={`p-1.5 border ${creditBalance < 10 ? 'border-red-200 text-red-500' : creditBalance < 20 ? 'border-amber-200 text-amber-500' : 'border-[#E5E7EB] text-[#FACA15]'}`}>
+              <CreditCard className="w-4 h-4" />
+            </div>
+            <span className="text-xs tracking-[0.15em] uppercase font-bold text-[#6B7280]">Credits</span>
+          </div>
+          <p className={`text-2xl font-bold font-mono ${creditBalance < 10 ? 'text-red-500' : creditBalance < 20 ? 'text-amber-500' : 'text-[#111827]'}`} style={{ fontFamily: 'IBM Plex Sans' }}>
+            {creditBalance}
+          </p>
+          <p className="text-xs text-[#6B7280] mt-1">{credits?.total_used ?? 0} used</p>
+          {creditBalance < 10 && <p className="text-xs text-red-500 mt-1">⚠ Low credits!</p>}
+        </div>
+
+        <StatCard icon={Users} label="Linked Drivers" value={drivers.length} sub={`${activeDrivers} active`} color="#002FA7" />
+        <StatCard icon={Truck} label="Active Trucks" value={stats.active_trucks} sub="On the road" color="#10B981" />
+        <StatCard icon={Calendar} label="Bookings" value={stats.total_bookings} sub="Total slots" color="#FACA15" />
+        <StatCard icon={Fuel} label="Fuel Saved" value={`${stats.fuel_saved_liters}L`} sub="Via routing" color="#E02424" />
       </div>
 
       {/* Fleet list */}
@@ -118,7 +190,7 @@ export default function OrgDashboard() {
       </div>
 
       {/* Recent Bookings */}
-      <div className="bg-white border border-[#E5E7EB]" data-testid="recent-bookings">
+      <div className="bg-white border border-[#E5E7EB] mb-6" data-testid="recent-bookings">
         <div className="px-4 py-3 border-b border-[#E5E7EB]">
           <h3 className="text-sm font-bold" style={{ fontFamily: 'IBM Plex Sans' }}>Recent Bookings</h3>
         </div>
@@ -133,6 +205,50 @@ export default function OrgDashboard() {
                   <p className="text-xs text-[#6B7280]">By {b.user_name}</p>
                 </div>
                 <Badge variant="outline" className="text-[10px]">{b.status}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Linked Drivers */}
+      <div className="bg-white border border-[#E5E7EB]" data-testid="linked-drivers">
+        <div className="px-4 py-3 border-b border-[#E5E7EB] flex items-center justify-between">
+          <h3 className="text-sm font-bold" style={{ fontFamily: 'IBM Plex Sans' }}>My Drivers ({drivers.length})</h3>
+          <Link to="/org/drivers">
+            <Button variant="ghost" size="sm" className="text-[#6B7280] hover:text-[#002FA7] text-xs">
+              Manage →
+            </Button>
+          </Link>
+        </div>
+        {drivers.length === 0 ? (
+          <div className="p-6 text-center">
+            <Users className="h-6 w-6 text-[#D1D5DB] mx-auto mb-2" />
+            <p className="text-sm text-[#6B7280]">No drivers linked yet</p>
+            <Link to="/org/drivers">
+              <Button variant="outline" size="sm" className="mt-3 border-[#E5E7EB] text-[#374151] text-xs">
+                Link Drivers
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="divide-y divide-[#E5E7EB]">
+            {drivers.slice(0, 8).map(d => (
+              <div key={d._id} className="px-4 py-3 flex items-center justify-between hover:bg-[#F9FAFB]">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                    d.is_active ? 'bg-emerald-100 text-emerald-600' : 'bg-[#E5E7EB] text-[#6B7280]'
+                  }`}>
+                    {d.name?.charAt(0)?.toUpperCase() || 'D'}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{d.name}</p>
+                    <p className="text-xs text-[#6B7280]">{d.email}</p>
+                  </div>
+                </div>
+                <Badge className={`text-[10px] ${d.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-[#F3F4F6] text-[#6B7280]'}`}>
+                  {d.is_active ? '● Active' : '○ Offline'}
+                </Badge>
               </div>
             ))}
           </div>

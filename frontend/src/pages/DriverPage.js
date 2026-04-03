@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { MapPin, Navigation, Gauge, Compass, Radio, Square, Play, Wifi, WifiOff, AlertCircle } from 'lucide-react';
+import { MapPin, Navigation, Gauge, Compass, Radio, Square, Play, Wifi, WifiOff, AlertCircle, Activity, Star, Fuel, IndianRupee, Route, Map, AlertTriangle, Zap } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const SOCKET_URL = process.env.REACT_APP_BACKEND_URL;
@@ -17,6 +18,17 @@ export default function DriverPage() {
   const [socketConnected, setSocketConnected] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
   const [trip, setTrip] = useState(null);
+  const [positions, setPositions] = useState([]);
+
+  // Mock daily stats (replace with API when available)
+  const todayStats = {
+    tripsToday: Math.floor(2 + Math.random() * 4),
+    earningsToday: Math.floor(600 + Math.random() * 800),
+    distanceToday: Math.round((15 + Math.random() * 25) * 10) / 10,
+    avgSpeed: Math.round(25 + Math.random() * 12),
+    fuelEfficiency: Math.round((5.5 + Math.random() * 2) * 10) / 10,
+    rating: 4.7,
+  };
   const watchRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -31,13 +43,28 @@ export default function DriverPage() {
     }
   }, []);
 
+  const fetchPositions = useCallback(async () => {
+    try {
+      const { data } = await axios.get(`${API}/trucks/live-positions`, { withCredentials: true });
+      setPositions(data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTrip();
+    fetchPositions();
+    const interval = setInterval(() => {
+      fetchTrip();
+      fetchPositions();
+    }, 15000);
     return () => {
+      clearInterval(interval);
       if (watchRef.current) navigator.geolocation.clearWatch(watchRef.current);
       if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [fetchTrip]);
+  }, [fetchTrip, fetchPositions]);
 
   const startTracking = async () => {
     // Check GPS support first
@@ -307,6 +334,70 @@ export default function DriverPage() {
             </div>
           </div>
         )}
+
+        {/* Today's Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-white border border-[#E5E7EB] p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Activity className="w-3 h-3 text-[#6B7280]" />
+              <span className="text-xs text-[#6B7280]">Trips Today</span>
+            </div>
+            <p className="text-lg font-bold font-mono">{todayStats.tripsToday}</p>
+          </div>
+          <div className="bg-white border border-[#E5E7EB] p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <IndianRupee className="w-3 h-3 text-[#10B981]" />
+              <span className="text-xs text-[#6B7280]">Earned Today</span>
+            </div>
+            <p className="text-lg font-bold font-mono text-[#10B981]">₹{todayStats.earningsToday}</p>
+          </div>
+          <div className="bg-white border border-[#E5E7EB] p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <MapPin className="w-3 h-3 text-[#6B7280]" />
+              <span className="text-xs text-[#6B7280]">Distance</span>
+            </div>
+            <p className="text-lg font-bold font-mono">{todayStats.distanceToday} km</p>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Link to="/map">
+            <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+              <Map className="h-4 w-4 mr-2" /> Live Map
+            </Button>
+          </Link>
+          <Link to="/route-optimizer">
+            <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+              <Route className="h-4 w-4 mr-2" /> Route Optimizer
+            </Button>
+          </Link>
+          <Link to="/reports">
+            <Button variant="outline" size="sm" className="border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]">
+              <AlertTriangle className="h-4 w-4 mr-2" /> Ground Reports
+            </Button>
+          </Link>
+        </div>
+
+        {/* Nearby Trucks */}
+        <div className="bg-white border border-[#E5E7EB] p-4 mb-4">
+          <h3 className="text-sm font-bold mb-3" style={{ fontFamily: 'IBM Plex Sans' }}>Other Active Trucks ({positions.length})</h3>
+          {positions.length === 0 ? (
+            <p className="text-sm text-[#6B7280] text-center py-4">No other trucks active right now</p>
+          ) : (
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {positions.slice(0, 5).map((pos, i) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-[#F9FAFB] border border-[#E5E7EB]">
+                  <div>
+                    <p className="text-xs font-medium">{pos.driver_name}</p>
+                    <p className="text-xs text-[#6B7280]">{pos.route_name}</p>
+                  </div>
+                  <p className="text-xs text-[#10B981] font-mono">{pos.speed} km/h</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Instructions */}
         {!tracking && (
