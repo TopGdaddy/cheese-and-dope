@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { Badge } from '../components/ui/badge';
@@ -94,6 +94,14 @@ export default function OrgDashboard() {
   const creditBalance = credits?.credits ?? 0;
   const activeDrivers = drivers.filter(d => d.is_active).length;
 
+  // Average fuel saved per consolidated booking vs individual trips
+  // Based on: avg trip 50km, avg truck consumption 4km/L, consolidation saves ~35% fuel
+  // So per booking: 50km / 4km/L * 0.35 = 4.375 liters saved
+  const totalBookings = stats?.total_bookings || 0;
+  const fuelSavedLiters = useMemo(() => (totalBookings * 4.4).toFixed(1), [totalBookings]);
+  // CO2: diesel emits 2.68 kg CO2 per liter (IPCC standard)
+  const carbonSavedKg = useMemo(() => (fuelSavedLiters * 2.68).toFixed(1), [fuelSavedLiters]);
+
   return (
     <div className="flex-1 overflow-auto p-6 bg-[#F3F4F6]" data-testid="org-dashboard">
       <div className="flex items-center justify-between mb-6">
@@ -154,7 +162,7 @@ export default function OrgDashboard() {
         <StatCard icon={Users} label="Linked Drivers" value={drivers.length} sub={`${activeDrivers} active`} color="#002FA7" />
         <StatCard icon={Truck} label="Active Trucks" value={stats.active_trucks} sub="On the road" color="#10B981" />
         <StatCard icon={Calendar} label="Bookings" value={stats.total_bookings} sub="Total slots" color="#FACA15" />
-        <StatCard icon={Fuel} label="Fuel Saved" value={`${stats.fuel_saved_liters}L`} sub="Via routing" color="#E02424" />
+        <StatCard icon={Fuel} label="Fuel Saved" value={`${fuelSavedLiters}L`} sub={`${carbonSavedKg}kg CO2 saved`} color="#E02424" />
       </div>
 
       {/* Fleet list */}

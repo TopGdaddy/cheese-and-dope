@@ -20,11 +20,26 @@ import random
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
+from collections import defaultdict
+import time
 import socketio as socketio_lib
 
 # Global variables - initialized at runtime in startup()
 client = None
 db = None
+
+# Simple in-memory rate limiter
+_rate_limit_store = defaultdict(list)
+
+def check_rate_limit(key: str, max_requests: int = 5, window_seconds: int = 60):
+    """Returns True if rate limited, False if allowed."""
+    now = time.time()
+    # Clean old entries
+    _rate_limit_store[key] = [t for t in _rate_limit_store[key] if now - t < window_seconds]
+    if len(_rate_limit_store[key]) >= max_requests:
+        return True
+    _rate_limit_store[key].append(now)
+    return False
 
 # Configure CORS with explicit allowed origins
 allowed_origins = [
@@ -203,7 +218,11 @@ async def health_check():
 # ========== AUTH ENDPOINTS ==========
 
 @api_router.post("/auth/register")
-async def register(input_data: RegisterInput):
+async def register(input_data: RegisterInput, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    if check_rate_limit(f"register:{client_ip}", max_requests=3, window_seconds=60):
+        raise HTTPException(429, "Too many registration attempts. Try again in a minute.")
+    
     email = input_data.email.lower().strip()
     existing = await db.users.find_one({"email": email})
     if existing:
@@ -248,7 +267,11 @@ async def register(input_data: RegisterInput):
     return response
 
 @api_router.post("/auth/login")
-async def login(input_data: LoginInput):
+async def login(input_data: LoginInput, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    if check_rate_limit(f"login:{client_ip}", max_requests=5, window_seconds=60):
+        raise HTTPException(429, "Too many login attempts. Try again in a minute.")
+    
     email = input_data.email.lower().strip()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(input_data.password, user["password_hash"]):
@@ -560,7 +583,10 @@ async def get_admin_stats(request: Request):
         "active_reports": await db.ground_reports.count_documents({"status": "active"}),
         "total_slots": await db.delivery_slots.count_documents({}),
         "total_bookings": await db.slot_bookings.count_documents({}),
-        "carbon_saved_kg": round(await db.slot_bookings.count_documents({}) * 2.3, 1),
+        # Realistic estimate: each consolidated booking saves ~4.4L diesel
+        # Diesel emits 2.68 kg CO2/liter (IPCC standard)
+        "fuel_saved_liters": round(total_bookings * 4.4, 1),
+        "carbon_saved_kg": round(total_bookings * 4.4 * 2.68, 1),
         "avg_congestion_reduction": 28.5
     }
 
@@ -617,10 +643,15 @@ async def get_org_stats(request: Request):
         raise HTTPException(status_code=403, detail="Organization only")
     org_id = user.get("organization_id")
     bookings = await db.slot_bookings.count_documents({"organization_id": org_id}) if org_id else 0
+    # Realistic estimate: each consolidated booking saves ~4.4L diesel
+    # Diesel emits 2.68 kg CO2/liter (IPCC standard)
+    fuel_saved_liters = round(bookings * 4.4, 1)
+    carbon_saved_kg = round(fuel_saved_liters * 2.68, 1)
     return {
         "total_bookings": bookings, "active_trucks": await db.live_positions.count_documents({}),
         "delivery_completion_rate": 87.5, "avg_delivery_time_min": 45,
-        "fuel_saved_liters": round(bookings * 3.2, 1)
+        "fuel_saved_liters": fuel_saved_liters,
+        "carbon_saved_kg": carbon_saved_kg
     }
 
 # ========== CREDIT ENDPOINTS ==========
