@@ -96,7 +96,7 @@ export const getAllowedPaths = (role) => {
   const roleSpecificPaths = {
     admin: ['/admin', '/slots', '/notifications', '/analytics', '/route-optimizer'],
     driver: ['/driver', '/driver/trips', '/notifications', '/route-optimizer'],
-    organization: ['/organization', '/org/fleet', '/org/drivers', '/slots', '/notifications', '/analytics', '/route-optimizer'],
+    organization: ['/organization', '/org', '/org/fleet', '/org/drivers', '/slots', '/notifications', '/analytics', '/route-optimizer'],
     regular: ['/dashboard'],
   };
   

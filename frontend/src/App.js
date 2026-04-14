@@ -82,6 +82,7 @@ function AppRoutes() {
         {/* ORGANIZATION ROUTES */}
         <Route element={<RoleProtectedRoute allowedRoles={['organization', 'admin']} />}>
           <Route path="/organization" element={<OrgDashboard />} />
+          <Route path="/org" element={<OrgDashboard />} />
           <Route path="/org/drivers" element={<OrgDrivers />} />
         </Route>
 

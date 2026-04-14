@@ -51,13 +51,27 @@ export default function OrgDashboard() {
   const [fleet, setFleet] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [credits, setCredits] = useState(null);
-
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Error boundary for debugging
+  if (error) {
+    return (
+      <div style={{padding: 40, color: 'red', background: '#fee2e2'}}>
+        <h2>OrgDashboard Error</h2>
+        <pre style={{whiteSpace: 'pre-wrap', fontSize: 13}}>{error.toString()}</pre>
+        <button onClick={() => window.location.reload()} style={{marginTop: 20, padding: '8px 16px'}}>
+          Reload Page
+        </button>
+      </div>
+    );
+  }
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const [s, f, b, c, d] = await Promise.allSettled([
         axios.get(`${API}/org/stats`, { withCredentials: true }),
         axios.get(`${API}/org/fleet`, { withCredentials: true }),
@@ -66,13 +80,21 @@ export default function OrgDashboard() {
         axios.get(`${API}/org/drivers`, { withCredentials: true })
       ]);
       
+      // Check for rejected promises and log them
+      [s, f, b, c, d].forEach((result, idx) => {
+        if (result.status === 'rejected') {
+          console.error(`API call ${idx} failed:`, result.reason);
+        }
+      });
+      
       if (s.status === 'fulfilled') setStats(s.value.data);
-      if (f.status === 'fulfilled') setFleet(f.value.data);
-      if (b.status === 'fulfilled') setBookings(b.value.data);
+      if (f.status === 'fulfilled') setFleet(f.value.data || []);
+      if (b.status === 'fulfilled') setBookings(b.value.data || []);
       if (c.status === 'fulfilled') setCredits(c.value.data);
       if (d.status === 'fulfilled') setDrivers(d.value.data || []);
     } catch (err) {
-      console.error(err);
+      console.error("OrgDashboard fetch error:", err);
+      setError(err.message || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
@@ -92,7 +114,7 @@ export default function OrgDashboard() {
   }
 
   const creditBalance = credits?.credits ?? 0;
-  const activeDrivers = drivers.filter(d => d.is_active).length;
+  const activeDrivers = Array.isArray(drivers) ? drivers.filter(d => d?.is_active).length : 0;
 
   // Average fuel saved per consolidated booking vs individual trips
   // Based on: avg trip 50km, avg truck consumption 4km/L, consolidation saves ~35% fuel
@@ -160,8 +182,8 @@ export default function OrgDashboard() {
         </div>
 
         <StatCard icon={Users} label="Linked Drivers" value={drivers.length} sub={`${activeDrivers} active`} color="#002FA7" />
-        <StatCard icon={Truck} label="Active Trucks" value={stats.active_trucks} sub="On the road" color="#10B981" />
-        <StatCard icon={Calendar} label="Bookings" value={stats.total_bookings} sub="Total slots" color="#FACA15" />
+        <StatCard icon={Truck} label="Active Trucks" value={stats?.active_trucks ?? 0} sub="On the road" color="#10B981" />
+        <StatCard icon={Calendar} label="Bookings" value={stats?.total_bookings ?? 0} sub="Total slots" color="#FACA15" />
         <StatCard icon={Fuel} label="Fuel Saved" value={`${fuelSavedLiters}L`} sub={`${carbonSavedKg}kg CO2 saved`} color="#E02424" />
       </div>
 
