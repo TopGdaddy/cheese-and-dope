@@ -573,6 +573,11 @@ async def get_admin_stats(request: Request):
     user = await get_current_user(request)
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
+    total_bookings = await db.slot_bookings.count_documents({})
+    # Realistic estimate: each consolidated booking saves ~4.4L diesel
+    # Diesel emits 2.68 kg CO2/liter (IPCC standard)
+    fuel_saved_liters = round(total_bookings * 4.4, 1)
+    carbon_saved_kg = round(fuel_saved_liters * 2.68, 1)
     return {
         "total_users": await db.users.count_documents({}),
         "total_drivers": await db.users.count_documents({"role": "driver"}),
@@ -582,11 +587,9 @@ async def get_admin_stats(request: Request):
         "total_reports": await db.ground_reports.count_documents({}),
         "active_reports": await db.ground_reports.count_documents({"status": "active"}),
         "total_slots": await db.delivery_slots.count_documents({}),
-        "total_bookings": await db.slot_bookings.count_documents({}),
-        # Realistic estimate: each consolidated booking saves ~4.4L diesel
-        # Diesel emits 2.68 kg CO2/liter (IPCC standard)
-        "fuel_saved_liters": round(total_bookings * 4.4, 1),
-        "carbon_saved_kg": round(total_bookings * 4.4 * 2.68, 1),
+        "total_bookings": total_bookings,
+        "fuel_saved_liters": fuel_saved_liters,
+        "carbon_saved_kg": carbon_saved_kg,
         "avg_congestion_reduction": 28.5
     }
 

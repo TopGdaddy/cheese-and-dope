@@ -102,6 +102,11 @@ export default function OrgDashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Hooks MUST be called before any conditional return (Rules of Hooks)
+  const totalBookings = stats?.total_bookings || 0;
+  const fuelSavedLiters = useMemo(() => (totalBookings * 4.4).toFixed(1), [totalBookings]);
+  const carbonSavedKg = useMemo(() => (parseFloat(fuelSavedLiters) * 2.68).toFixed(1), [fuelSavedLiters]);
+
   if (loading || !stats) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#F3F4F6] min-h-screen">
@@ -119,10 +124,7 @@ export default function OrgDashboard() {
   // Average fuel saved per consolidated booking vs individual trips
   // Based on: avg trip 50km, avg truck consumption 4km/L, consolidation saves ~35% fuel
   // So per booking: 50km / 4km/L * 0.35 = 4.375 liters saved
-  const totalBookings = stats?.total_bookings || 0;
-  const fuelSavedLiters = useMemo(() => (totalBookings * 4.4).toFixed(1), [totalBookings]);
   // CO2: diesel emits 2.68 kg CO2 per liter (IPCC standard)
-  const carbonSavedKg = useMemo(() => (fuelSavedLiters * 2.68).toFixed(1), [fuelSavedLiters]);
 
   return (
     <div className="flex-1 overflow-auto p-6 bg-[#F3F4F6]" data-testid="org-dashboard">
