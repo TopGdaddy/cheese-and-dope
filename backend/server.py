@@ -81,6 +81,26 @@ def create_refresh_token(user_id: str) -> str:
     payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "refresh"}
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
+@api_router.post("/auth/refresh")
+async def refresh_token(request: Request):
+    """Use refresh token cookie to get a new access token."""
+    refresh = request.cookies.get("refresh_token")
+    if not refresh:
+        raise HTTPException(status_code=401, detail="No refresh token")
+    try:
+        payload = jwt.decode(refresh, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        new_access = create_access_token(str(user["_id"]), user["email"])
+        return {"access_token": new_access, "token_type": "bearer"}
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
 async def get_current_user(request: Request) -> dict:
     token = request.cookies.get("access_token")
     if not token:
@@ -181,6 +201,12 @@ async def register(input_data: RegisterInput):
         raise HTTPException(status_code=400, detail="Email already registered")
     if input_data.role not in ["regular", "driver", "organization"]:
         raise HTTPException(status_code=400, detail="Invalid role")
+    
+    # Password and email validation
+    if len(input_data.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
 
     user_doc = {
         "name": input_data.name, "email": email,
@@ -412,6 +438,41 @@ async def book_slot(booking: SlotBookInput, request: Request):
     booking_doc["remaining_credits"] = remaining_credits
     return booking_doc
 
+@api_router.delete("/slots/cancel/{slot_id}")
+async def cancel_slot(slot_id: str, request: Request):
+    """Cancel a booked slot and refund credits to the organization."""
+    user = await get_current_user(request)
+    slot = await db.slot_bookings.find_one({"_id": ObjectId(slot_id)})
+    if not slot:
+        raise HTTPException(status_code=404, detail="Slot not found")
+    if slot.get("user_id") != user["user_id"] and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to cancel this slot")
+    if slot.get("status") == "cancelled":
+        raise HTTPException(status_code=400, detail="Slot already cancelled")
+    
+    # Mark slot as cancelled
+    await db.slot_bookings.update_one(
+        {"_id": ObjectId(slot_id)},
+        {"$set": {"status": "cancelled", "cancelled_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Refund credits to the organization
+    credit_cost = slot.get("credit_cost", 1)
+    if slot.get("organization_id"):
+        await db.organizations.update_one(
+            {"_id": ObjectId(slot["organization_id"])},
+            {"$inc": {"credits": credit_cost}}
+        )
+    
+    # Decrement booked_count on the slot definition
+    if slot.get("slot_definition_id"):
+        await db.delivery_slots.update_one(
+            {"_id": ObjectId(slot["slot_definition_id"])},
+            {"$inc": {"booked_count": -1}}
+        )
+    
+    return {"message": "Slot cancelled, credits refunded", "refunded": credit_cost}
+
 @api_router.get("/slots/bookings")
 async def get_bookings(request: Request):
     user = await get_current_user(request)
@@ -535,7 +596,10 @@ async def get_org_fleet(request: Request):
     user = await get_current_user(request)
     if user["role"] not in ["organization", "admin"]:
         raise HTTPException(status_code=403, detail="Organization only")
-    return await db.live_positions.find({}, {"_id": 0}).to_list(100)
+    org_id = user.get("organization_id")
+    query = {"organization_id": org_id} if org_id else {"organization_id": {"$exists": False}}
+    positions = await db.live_positions.find(query, {"_id": 0}).to_list(100)
+    return positions
 
 @api_router.get("/org/stats")
 async def get_org_stats(request: Request):
@@ -990,6 +1054,7 @@ async def startup():
     await db.ground_reports.create_index("report_id", unique=True)
     await db.delivery_slots.create_index("slot_id", unique=True)
     await db.report_votes.create_index([("report_id", 1), ("user_id", 1)], unique=True)
+    await db.location_history.create_index("timestamp", expireAfterSeconds=604800)
 
     await seed_admin()
     await seed_delivery_slots()
