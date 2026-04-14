@@ -996,12 +996,8 @@ async def startup():
     await seed_sample_reports()
     await seed_org_credits()
 
-    os.makedirs("/app/memory", exist_ok=True)
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
-    with open("/app/memory/test_credentials.md", "w") as f:
-        f.write(f"# Test Credentials\n\n## Admin\n- Email: {admin_email}\n- Password: {admin_password}\n- Role: admin\n\n")
-        f.write("## Auth Endpoints\n- POST /api/auth/login\n- POST /api/auth/register\n- POST /api/auth/logout\n- GET /api/auth/me\n")
+    logger.info(f"[DEV] Test admin: {admin_email}")
 
     asyncio.create_task(mock_truck_simulator())
     logger.info("Application started successfully")

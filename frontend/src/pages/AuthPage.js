@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getDefaultPath } from '../config/navigationConfig';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -24,11 +25,7 @@ export default function AuthPage() {
 
   // Redirect if already authenticated
   if (user && user !== false) {
-    const role = user?.role;
-    if (role === 'admin') navigate('/admin', { replace: true });
-    else if (role === 'driver') navigate('/driver', { replace: true });
-    else if (role === 'organization') navigate('/organization', { replace: true });
-    else navigate('/admin', { replace: true });
+    navigate(getDefaultPath(user.role), { replace: true });
     return null;
   }
 
@@ -41,11 +38,7 @@ export default function AuthPage() {
     setLoading(true);
     try {
       const user = await login(loginForm.email, loginForm.password);
-      // Navigate based on role
-      if (user?.role === 'admin') navigate('/admin');
-      else if (user?.role === 'driver') navigate('/driver');
-      else if (user?.role === 'organization') navigate('/organization');
-      else navigate('/admin');
+      navigate(getDefaultPath(user?.role));
     } catch (err) {
       setError(formatError(err.response?.data?.detail) || err.message);
     } finally {
@@ -59,11 +52,7 @@ export default function AuthPage() {
     setLoading(true);
     try {
       const user = await register(regForm.name, regForm.email, regForm.password, regForm.role, regForm.orgName);
-      // Navigate based on role
-      if (user?.role === 'admin') navigate('/admin');
-      else if (user?.role === 'driver') navigate('/driver');
-      else if (user?.role === 'organization') navigate('/organization');
-      else navigate('/admin');
+      navigate(getDefaultPath(user?.role));
     } catch (err) {
       setError(formatError(err.response?.data?.detail) || err.message);
     } finally {

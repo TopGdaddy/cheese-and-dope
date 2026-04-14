@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
@@ -21,14 +21,14 @@ export default function DriverPage() {
   const [positions, setPositions] = useState([]);
 
   // Mock daily stats (replace with API when available)
-  const todayStats = {
+  const todayStats = useMemo(() => ({
     tripsToday: Math.floor(2 + Math.random() * 4),
     earningsToday: Math.floor(600 + Math.random() * 800),
     distanceToday: Math.round((15 + Math.random() * 25) * 10) / 10,
     avgSpeed: Math.round(25 + Math.random() * 12),
     fuelEfficiency: Math.round((5.5 + Math.random() * 2) * 10) / 10,
     rating: 4.7,
-  };
+  }), []);
   const watchRef = useRef(null);
   const socketRef = useRef(null);
 

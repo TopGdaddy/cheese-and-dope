@@ -4,7 +4,10 @@ import { Link } from 'react-router-dom';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Users, Truck, AlertTriangle, Calendar, Leaf, TrendingDown, Trash2, Loader2, MapPin, BarChart3, FileText, Shield } from 'lucide-react';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
+import { Users, Truck, AlertTriangle, Calendar, Leaf, TrendingDown, Trash2, Loader2, MapPin, BarChart3, FileText, Shield, CreditCard, Plus, Building2, CheckCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -32,16 +35,24 @@ export default function AdminDashboard() {
   const [error, setError] = useState(null);
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
+  const [topupModalOpen, setTopupModalOpen] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState(null);
+  const [topupAmount, setTopupAmount] = useState('');
+  const [topupReason, setTopupReason] = useState('Admin top-up');
+  const [topupLoading, setTopupLoading] = useState(false);
+  const [topupSuccess, setTopupSuccess] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [s, u, r, t, b] = await Promise.allSettled([
+      const [s, u, r, t, b, o] = await Promise.allSettled([
         axios.get(`${API}/admin/stats`, { withCredentials: true }),
         axios.get(`${API}/admin/users`, { withCredentials: true }),
         axios.get(`${API}/reports`, { withCredentials: true }),
         axios.get(`${API}/trucks/live-positions`, { withCredentials: true }),
-        axios.get(`${API}/slots/bookings`, { withCredentials: true })
+        axios.get(`${API}/slots/bookings`, { withCredentials: true }),
+        axios.get(`${API}/admin/organizations`, { withCredentials: true })
       ]);
       
       if (s.status === 'fulfilled') setStats(s.value.data);
@@ -49,6 +60,7 @@ export default function AdminDashboard() {
       if (r.status === 'fulfilled') setReports(r.value.data);
       if (t.status === 'fulfilled') setTrucks(t.value.data || []);
       if (b.status === 'fulfilled') setBookings((b.value.data || []).slice(-5).reverse());
+      if (o.status === 'fulfilled') setOrganizations(o.value.data || []);
       
       setError(null);
     } catch (err) {
@@ -80,6 +92,41 @@ export default function AdminDashboard() {
     }
   };
 
+  const openTopupModal = (org) => {
+    setSelectedOrg(org);
+    setTopupAmount('');
+    setTopupReason('Admin top-up');
+    setTopupSuccess(null);
+    setTopupModalOpen(true);
+  };
+
+  const handleTopupCredits = async (e) => {
+    e.preventDefault();
+    if (!selectedOrg || !topupAmount || parseInt(topupAmount) <= 0) return;
+    
+    setTopupLoading(true);
+    try {
+      const response = await axios.post(`${API}/admin/credits/topup`, {
+        organization_id: selectedOrg._id,
+        amount: parseInt(topupAmount),
+        reason: topupReason
+      }, { withCredentials: true });
+      
+      setTopupSuccess({
+        message: response.data.message,
+        newBalance: response.data.new_balance
+      });
+      
+      // Refresh organizations list
+      const orgsRes = await axios.get(`${API}/admin/organizations`, { withCredentials: true });
+      setOrganizations(orgsRes.data || []);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to top up credits');
+    } finally {
+      setTopupLoading(false);
+    }
+  };
+
   const chartData = [
     { name: '8AM', trucks: 4, reports: 1 },
     { name: '10AM', trucks: 8, reports: 2 },
@@ -89,7 +136,7 @@ export default function AdminDashboard() {
     { name: '6PM', trucks: 5, reports: 1 },
   ];
 
-  if (loading && !stats) {
+  if (loading || !stats) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#F3F4F6] min-h-screen">
         <div className="text-center">
@@ -259,6 +306,133 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Organization Credit Management */}
+      <div className="bg-white border border-[#E5E7EB] mt-6" data-testid="admin-organizations-credits">
+        <div className="px-4 py-3 border-b border-[#E5E7EB] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-[#FACA15]" />
+            <h3 className="text-sm font-bold" style={{ fontFamily: 'IBM Plex Sans' }}>Organization Credits</h3>
+          </div>
+          <span className="text-xs text-[#6B7280]">{organizations.length} organizations</span>
+        </div>
+        <div className="max-h-[300px] overflow-y-auto">
+          {organizations.length === 0 ? (
+            <p className="p-4 text-sm text-[#6B7280] text-center">No organizations registered</p>
+          ) : (
+            organizations.map(org => {
+              const credits = org.credits ?? 0;
+              const isLow = credits < 10;
+              const isWarning = credits >= 10 && credits < 20;
+              return (
+                <div key={org._id} className="flex items-center justify-between px-4 py-3 border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#002FA7]/10 flex items-center justify-center">
+                      <Building2 className="w-4 h-4 text-[#002FA7]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{org.name}</p>
+                      <p className="text-xs text-[#6B7280]">{org.driver_count || 0} drivers • {org.total_credits_used || 0} credits used</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className={`text-sm font-bold font-mono ${isLow ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-[#111827]'}`}>
+                        {credits}
+                      </p>
+                      <p className="text-[10px] text-[#6B7280]">credits</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-testid={`topup-org-${org._id}`}
+                      className="h-7 text-xs border-[#E5E7EB] text-[#374151] hover:bg-[#F9FAFB]"
+                      onClick={() => openTopupModal(org)}
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Top Up
+                    </Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Top-up Modal */}
+      <Dialog open={topupModalOpen} onOpenChange={setTopupModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: 'IBM Plex Sans' }}>Top Up Credits</DialogTitle>
+            <DialogDescription>
+              Add credits to {selectedOrg?.name || 'organization'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {topupSuccess ? (
+            <div className="py-4">
+              <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                <div>
+                  <p className="text-sm font-medium text-emerald-800">{topupSuccess.message}</p>
+                  <p className="text-xs text-emerald-600 mt-1">New balance: {topupSuccess.newBalance} credits</p>
+                </div>
+              </div>
+              <Button
+                className="w-full mt-4 bg-[#002FA7] hover:bg-[#002FA7]/90"
+                onClick={() => setTopupModalOpen(false)}
+              >
+                Done
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleTopupCredits} className="space-y-4 pt-2">
+              <div>
+                <Label>Current Balance</Label>
+                <p className="text-lg font-bold font-mono mt-1">{selectedOrg?.credits ?? 0} credits</p>
+              </div>
+              <div>
+                <Label htmlFor="topup-amount">Amount to Add</Label>
+                <Input
+                  id="topup-amount"
+                  type="number"
+                  min="1"
+                  value={topupAmount}
+                  onChange={e => setTopupAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="topup-reason">Reason (optional)</Label>
+                <Input
+                  id="topup-reason"
+                  value={topupReason}
+                  onChange={e => setTopupReason(e.target.value)}
+                  placeholder="e.g., Monthly allocation"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setTopupModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-[#002FA7] hover:bg-[#002FA7]/90"
+                  disabled={topupLoading || !topupAmount || parseInt(topupAmount) <= 0}
+                >
+                  {topupLoading ? 'Processing...' : `Add ${topupAmount || 0} Credits`}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Bottom Row: Active Trucks + Recent Bookings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">

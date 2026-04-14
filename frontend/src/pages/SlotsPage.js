@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -51,12 +52,12 @@ export default function SlotsPage() {
       fetchSlots();
       // Show success with credit info
       if (response.data.remaining_credits !== null && response.data.remaining_credits !== undefined) {
-        alert(`Slot booked successfully! Credits used: ${response.data.credit_cost}. Remaining: ${response.data.remaining_credits}`);
+        toast.success(`Slot booked! Credits used: ${response.data.credit_cost}. Remaining: ${response.data.remaining_credits}`);
       } else {
-        alert('Slot booked successfully!');
+        toast.success('Slot booked successfully!');
       }
     } catch (err) {
-      alert(err.response?.data?.detail || 'Booking failed');
+      toast.error(err.response?.data?.detail || 'Booking failed');
     } finally {
       setBooking(false);
     }

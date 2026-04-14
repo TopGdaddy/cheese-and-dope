@@ -18,6 +18,7 @@ import RouteOptimizationPage from "@/pages/RouteOptimizationPage";
 import RegularDashboard from "@/pages/RegularDashboard";
 import OrgDrivers from "@/pages/OrgDrivers";
 import { getDefaultPath } from "@/config/navigationConfig";
+import { Toaster } from "@/components/ui/sonner";
 
 function DashboardLayout() {
   return (
@@ -118,6 +119,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <AppRoutes />
+        <Toaster />
       </AuthProvider>
     </BrowserRouter>
   );
