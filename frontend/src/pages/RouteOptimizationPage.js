@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -49,15 +49,6 @@ const LOCATIONS = [
   { id: 'mulund', name: 'Mulund Check Naka', lat: 19.1726, lng: 72.9563, zone: 'Eastern Suburbs' },
   { id: 'goregaon', name: 'Goregaon MIDC', lat: 19.1550, lng: 72.8490, zone: 'Western Suburbs' },
   { id: 'chembur', name: 'Chembur RCF', lat: 19.0522, lng: 72.8970, zone: 'Eastern Suburbs' },
-];
-
-// ===== CONGESTION ZONES =====
-const CONGESTION_ZONES = [
-  { lat: 18.9475, lng: 72.8335, radius: 800, level: 'high', name: 'Crawford Market' },
-  { lat: 19.0178, lng: 72.8478, radius: 700, level: 'high', name: 'Dadar TT' },
-  { lat: 19.0596, lng: 72.8656, radius: 900, level: 'medium', name: 'BKC' },
-  { lat: 19.1197, lng: 72.8464, radius: 750, level: 'high', name: 'Andheri Station' },
-  { lat: 19.0522, lng: 72.8970, radius: 600, level: 'medium', name: 'Chembur' },
 ];
 
 const congestionColors = { high: '#ef4444', medium: '#f97316', low: '#22c55e' };
@@ -134,6 +125,25 @@ export default function RouteOptimizationPage() {
   const [routes, setRoutes] = useState(null);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [congestionZones, setCongestionZones] = useState([]);
+
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/congestion-zones`);
+        if (res.ok) {
+          const data = await res.json();
+          setCongestionZones(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch congestion zones:", err);
+      }
+    };
+    fetchZones();
+    // Refresh every 2 minutes
+    const interval = setInterval(fetchZones, 120000);
+    return () => clearInterval(interval);
+  }, []);
 
   const pickupLocation = LOCATIONS.find(l => l.id === pickup);
   const deliveryLocation = LOCATIONS.find(l => l.id === delivery);
@@ -173,7 +183,7 @@ export default function RouteOptimizationPage() {
           dashArray: null,
           type: 'optimal',
           recommended: true,
-          metrics: calculateRouteMetrics(optimalWaypoints, CONGESTION_ZONES, 'optimal'),
+          metrics: calculateRouteMetrics(optimalWaypoints, congestionZones, 'optimal'),
         },
         {
           name: 'Alternative Route 1',
@@ -183,7 +193,7 @@ export default function RouteOptimizationPage() {
           dashArray: '10,6',
           type: 'alternative1',
           recommended: false,
-          metrics: calculateRouteMetrics(alt1Waypoints, CONGESTION_ZONES, 'alternative1'),
+          metrics: calculateRouteMetrics(alt1Waypoints, congestionZones, 'alternative1'),
         },
         {
           name: 'Alternative Route 2',
@@ -193,7 +203,7 @@ export default function RouteOptimizationPage() {
           dashArray: '6,8',
           type: 'alternative2',
           recommended: false,
-          metrics: calculateRouteMetrics(alt2Waypoints, CONGESTION_ZONES, 'alternative2'),
+          metrics: calculateRouteMetrics(alt2Waypoints, congestionZones, 'alternative2'),
         },
       ];
 
@@ -427,28 +437,19 @@ export default function RouteOptimizationPage() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                {CONGESTION_ZONES.map((zone, i) => (
+                {congestionZones.map((zone, i) => (
                   <Circle
-                    key={`zone-${i}`}
+                    key={zone._id || zone.name}
                     center={[zone.lat, zone.lng]}
                     radius={zone.radius}
                     pathOptions={{
-                      color: congestionColors[zone.level],
-                      fillColor: congestionColors[zone.level],
+                      color: zone.severity === "high" ? "#A32D2D" : zone.severity === "medium" ? "#BA7517" : "#1D9E75",
+                      fillColor: zone.severity === "high" ? "#A32D2D" : zone.severity === "medium" ? "#BA7517" : "#1D9E75",
                       fillOpacity: 0.15,
-                      weight: 2,
-                      dashArray: zone.level === 'high' ? '' : '5,5'
+                      weight: 2
                     }}
                   >
-                    <Popup>
-                      <div style={{ fontSize: '13px' }}>
-                        <strong>{zone.name}</strong><br />
-                        Congestion: <span style={{ color: congestionColors[zone.level] }}>
-                          {zone.level.toUpperCase()}
-                        </span><br />
-                        {zone.level === 'high' ? '⚠️ Avoid if possible' : '⏳ Monitor'}
-                      </div>
-                    </Popup>
+                    <Popup>{zone.name} — {zone.severity} congestion</Popup>
                   </Circle>
                 ))}
 

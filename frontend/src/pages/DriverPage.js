@@ -3,6 +3,7 @@ import axios from 'axios';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { MapPin, Navigation, Gauge, Compass, Radio, Square, Play, Wifi, WifiOff, AlertCircle, Activity, Star, Fuel, IndianRupee, Route, Map, AlertTriangle, Zap } from 'lucide-react';
@@ -62,7 +63,10 @@ export default function DriverPage() {
     return () => {
       clearInterval(interval);
       if (watchRef.current) navigator.geolocation.clearWatch(watchRef.current);
-      if (socketRef.current) socketRef.current.disconnect();
+      if (socketRef.current) {
+        socketRef.current.off("congestion-alert");
+        socketRef.current.disconnect();
+      }
     };
   }, [fetchTrip, fetchPositions]);
 
@@ -92,6 +96,13 @@ export default function DriverPage() {
     socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err);
       setSocketConnected(false);
+    });
+
+    socket.on("congestion-alert", (data) => {
+      toast.warning(`⚠️ ${data.message}`, {
+        description: `Severity: ${data.severity}`,
+        duration: 8000,
+      });
     });
 
     // Start trip on backend

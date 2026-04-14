@@ -63,19 +63,25 @@ export default function LiveMapPage() {
   const trailsRef = useRef({});
   const socketRef = useRef(null);
 
-  // MOCK DATA — Replace with API call to GET /api/congestion-zones when backend supports it
-  const congestionZones = [
-    { id: 1, name: 'Crawford Market', lat: 18.9475, lng: 72.8335, level: 'high', vehicles: 23, threshold: 15, radius: 1000 },
-    { id: 2, name: 'Andheri Station', lat: 19.1197, lng: 72.8464, level: 'high', vehicles: 19, threshold: 15, radius: 900 },
-    { id: 3, name: 'Dadar TT Circle', lat: 19.0178, lng: 72.8478, level: 'medium', vehicles: 12, threshold: 15, radius: 850 },
-    { id: 4, name: 'Borivali East', lat: 19.2288, lng: 72.8567, level: 'low', vehicles: 5, threshold: 15, radius: 800 },
-    { id: 5, name: 'Powai Lake Area', lat: 19.1176, lng: 72.9060, level: 'medium', vehicles: 9, threshold: 15, radius: 900 },
-    { id: 6, name: 'BKC Junction', lat: 19.0596, lng: 72.8656, level: 'high', vehicles: 21, threshold: 15, radius: 1100 },
-    { id: 7, name: 'Vashi APMC', lat: 19.0771, lng: 72.9987, level: 'medium', vehicles: 11, threshold: 15, radius: 950 },
-    { id: 8, name: 'Thane Wagle Estate', lat: 19.1975, lng: 72.9569, level: 'low', vehicles: 4, threshold: 15, radius: 800 },
-  ];
+  const [congestionZones, setCongestionZones] = useState([]);
 
-  const congestionColors = { high: '#ef4444', medium: '#f97316', low: '#22c55e' };
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/congestion-zones`);
+        if (res.ok) {
+          const data = await res.json();
+          setCongestionZones(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch congestion zones:", err);
+      }
+    };
+    fetchZones();
+    // Refresh every 2 minutes
+    const interval = setInterval(fetchZones, 120000);
+    return () => clearInterval(interval);
+  }, []);
 
   // MOCK DATA — Replace with API call to GET /api/route-suggestions when backend supports it
   const mockRoutes = {
@@ -285,27 +291,17 @@ export default function LiveMapPage() {
         {/* Congestion Zone Circles */}
         {showCongestionZones && congestionZones.map(zone => (
           <Circle
-            key={zone.id}
+            key={zone._id || zone.name}
             center={[zone.lat, zone.lng]}
             radius={zone.radius}
             pathOptions={{
-              color: congestionColors[zone.level],
-              fillColor: congestionColors[zone.level],
+              color: zone.severity === "high" ? "#A32D2D" : zone.severity === "medium" ? "#BA7517" : "#1D9E75",
+              fillColor: zone.severity === "high" ? "#A32D2D" : zone.severity === "medium" ? "#BA7517" : "#1D9E75",
               fillOpacity: 0.15,
-              weight: 2,
-              dashArray: zone.level === 'high' ? '' : '5,5'
+              weight: 2
             }}
           >
-            <Popup>
-              <div className="text-sm">
-                <p className="font-bold text-base">{zone.name}</p>
-                <p>Status: <span style={{color: congestionColors[zone.level]}}>{zone.level.toUpperCase()}</span></p>
-                <p>Vehicles: {zone.vehicles}/{zone.threshold}</p>
-                <p className="text-xs mt-1">
-                  {zone.level === 'high' ? '⚠️ Rerouting recommended' : zone.level === 'medium' ? '⏳ Monitor closely' : '✅ Clear for delivery'}
-                </p>
-              </div>
-            </Popup>
+            <Popup>{zone.name} — {zone.severity} congestion</Popup>
           </Circle>
         ))}
 
