@@ -12,6 +12,23 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const refreshAccessToken = async () => {
+    try {
+      const res = await fetch("/api/auth/refresh", { 
+        method: "POST",
+        credentials: "include" // important: sends the refresh_token cookie
+      });
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem("token", data.access_token);
+        return data.access_token;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const checkAuth = useCallback(async () => {
     // If no backend URL configured, treat as unauthenticated
     if (!API) {
@@ -41,13 +58,26 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
 
-  // Clear auth state on 401 responses
+  // Silent token refresh on 401 responses
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       response => response,
-      error => {
-        if (error.response?.status === 401) {
-          setUser(false);
+      async error => {
+        const originalRequest = error.config;
+        
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          const newToken = await refreshAccessToken();
+          
+          if (newToken) {
+            // Retry the original request with new token
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            return axios(originalRequest);
+          } else {
+            // Refresh failed, actually log out
+            setUser(null);
+            localStorage.removeItem("token");
+          }
         }
         return Promise.reject(error);
       }

@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Users, Truck, AlertTriangle, Calendar, Leaf, TrendingDown, Trash2, Loader2, MapPin, BarChart3, FileText, Shield, CreditCard, Plus, Building2, CheckCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -42,6 +43,7 @@ export default function AdminDashboard() {
   const [topupReason, setTopupReason] = useState('Admin top-up');
   const [topupLoading, setTopupLoading] = useState(false);
   const [topupSuccess, setTopupSuccess] = useState(null);
+  const [topupAmountInline, setTopupAmountInline] = useState(10);
 
   const fetchData = useCallback(async () => {
     try {
@@ -102,7 +104,7 @@ export default function AdminDashboard() {
 
   const handleTopupCredits = async (e) => {
     e.preventDefault();
-    if (!selectedOrg || !topupAmount || parseInt(topupAmount) <= 0) return;
+    if (!selectedOrg || !topupAmount) return;
     
     setTopupLoading(true);
     try {
@@ -113,17 +115,40 @@ export default function AdminDashboard() {
       }, { withCredentials: true });
       
       setTopupSuccess({
-        message: response.data.message,
+        orgName: selectedOrg.name,
+        amount: topupAmount,
         newBalance: response.data.new_balance
       });
       
-      // Refresh organizations list
+      // Refresh organizations data
       const orgsRes = await axios.get(`${API}/admin/organizations`, { withCredentials: true });
       setOrganizations(orgsRes.data || []);
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to top up credits');
+      console.error('Top-up error:', err);
     } finally {
       setTopupLoading(false);
+    }
+  };
+
+  const handleTopup = async (orgId) => {
+    try {
+      const response = await axios.post(`${API}/admin/credits/topup`, {
+        organization_id: orgId,
+        amount: topupAmountInline,
+        reason: 'Admin top-up'
+      }, { withCredentials: true });
+      
+      if (response.status === 200) {
+        toast.success(`Added ${topupAmountInline} credits`);
+        // Refresh orgs list
+        setOrganizations(prev => prev.map(o => 
+          o._id === orgId ? {...o, credits: (o.credits || 0) + topupAmountInline} : o
+        ));
+      } else {
+        toast.error("Top-up failed");
+      }
+    } catch (err) {
+      toast.error("Top-up failed");
     }
   };
 
@@ -216,6 +241,37 @@ export default function AdminDashboard() {
           <p className="text-3xl font-bold font-mono text-[#002FA7]">{stats.avg_congestion_reduction}%</p>
           <p className="text-xs text-[#6B7280] mt-1">Average peak-hour improvement</p>
         </div>
+      </div>
+
+      {/* Inline Organization Credits Panel */}
+      <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem", backgroundColor: "white", border: "1px solid #E5E7EB", padding: "16px" }}>
+        <h3 style={{ fontSize: "14px", fontWeight: "bold", marginBottom: "12px", fontFamily: 'IBM Plex Sans' }}>Organization Credits Quick Top-up</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <label style={{ fontSize: "14px" }}>Amount:</label>
+          <input 
+            type="number" 
+            value={topupAmountInline} 
+            onChange={e => setTopupAmountInline(Number(e.target.value))} 
+            min={1} 
+            max={1000} 
+            style={{ width: 80, padding: "4px 8px", border: "1px solid #E5E7EB", borderRadius: 4 }} 
+          />
+        </div>
+        {organizations.map(org => (
+          <div key={org._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #eee" }}>
+            <div>
+              <strong style={{ fontSize: "14px" }}>{org.name}</strong>
+              <span style={{ marginLeft: 12, color: "#666", fontSize: "14px" }}>Credits: {org.credits || 0}</span>
+            </div>
+            <button 
+              onClick={() => handleTopup(org._id)} 
+              style={{ padding: "4px 16px", background: "#1D9E75", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: "14px" }}
+            >
+              + Top Up
+            </button>
+          </div>
+        ))}
+        {organizations.length === 0 && <p style={{ color: "#999", fontSize: "14px" }}>No organizations found</p>}
       </div>
 
       {/* Chart */}

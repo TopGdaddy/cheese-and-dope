@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '../components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { AlertTriangle, ThumbsUp, ThumbsDown, Plus, MapPin, Clock } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -25,6 +27,16 @@ const severityStyles = {
   moderate: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
   minor: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 };
+
+// Location picker component for the map
+function LocationPicker({ position, setPosition }) {
+  useMapEvents({
+    click(e) {
+      setPosition([e.latlng.lat, e.latlng.lng]);
+    }
+  });
+  return position ? <Marker position={position} /> : null;
+}
 
 const statusStyles = {
   active: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
@@ -43,6 +55,7 @@ export default function ReportsPage() {
     report_type: 'Accident', severity: 'moderate', description: '', time_advisory: ''
   });
   const [submitting, setSubmitting] = useState(false);
+  const [reportPosition, setReportPosition] = useState([19.076, 72.878]);
 
   const fetchReports = useCallback(async () => {
     try {
@@ -78,11 +91,21 @@ export default function ReportsPage() {
       }, { withCredentials: true });
       setDialogOpen(false);
       setForm({ lat: '19.076', lng: '72.878', category: 'traffic_incident', report_type: 'Accident', severity: 'moderate', description: '', time_advisory: '' });
+      setReportPosition([19.076, 72.878]);
       fetchReports();
     } catch (err) {
       alert(err.response?.data?.detail || 'Submit failed');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Update position when lat/lng inputs change
+  const updatePositionFromInputs = (lat, lng) => {
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    if (!isNaN(latNum) && !isNaN(lngNum)) {
+      setReportPosition([latNum, lngNum]);
     }
   };
 
@@ -118,14 +141,48 @@ export default function ReportsPage() {
                 <DialogDescription>Report road conditions, weather, traffic incidents or route advisories.</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Map Location Picker */}
+                <div style={{ height: 200, marginBottom: 12, borderRadius: 8, overflow: "hidden" }}>
+                  <MapContainer center={[19.076, 72.878]} zoom={12} style={{ height: "100%", width: "100%" }}>
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <LocationPicker 
+                      position={reportPosition} 
+                      setPosition={(pos) => {
+                        setReportPosition(pos);
+                        // Also update the lat/lng form fields
+                        setForm(prev => ({ ...prev, lat: pos[0].toFixed(6), lng: pos[1].toFixed(6) }));
+                      }} 
+                    />
+                  </MapContainer>
+                </div>
+                <p style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>Click on the map to set location, or type coordinates below:</p>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Latitude</Label>
-                    <Input data-testid="report-lat" type="number" step="any" value={form.lat} onChange={e => setForm({...form, lat: e.target.value})} />
+                    <Input 
+                      data-testid="report-lat" 
+                      type="number" 
+                      step="any" 
+                      value={form.lat} 
+                      onChange={e => {
+                        setForm({...form, lat: e.target.value});
+                        updatePositionFromInputs(e.target.value, form.lng);
+                      }} 
+                    />
                   </div>
                   <div>
                     <Label>Longitude</Label>
-                    <Input data-testid="report-lng" type="number" step="any" value={form.lng} onChange={e => setForm({...form, lng: e.target.value})} />
+                    <Input 
+                      data-testid="report-lng" 
+                      type="number" 
+                      step="any" 
+                      value={form.lng} 
+                      onChange={e => {
+                        setForm({...form, lng: e.target.value});
+                        updatePositionFromInputs(form.lat, e.target.value);
+                      }} 
+                    />
                   </div>
                 </div>
                 <div>

@@ -655,6 +655,38 @@ async def delete_congestion_zone(zone_id: str, request: Request):
     await db.congestion_zones.delete_one({"_id": ObjectId(zone_id)})
     return {"message": "Zone deleted"}
 
+# ========== NOTIFICATIONS ENDPOINTS ==========
+
+@api_router.get("/notifications")
+async def get_notifications(request: Request):
+    """Get notifications for the current user based on role."""
+    user = await get_current_user(request)
+    user_id = str(user["_id"])
+    role = user["role"]
+    
+    # Get personal notifications + role-wide notifications
+    notifications = await db.notifications.find({
+        "$or": [
+            {"user_id": user_id},
+            {"target_role": role},
+            {"target_role": "all"}
+        ]
+    }).sort("created_at", -1).to_list(50)
+    
+    for n in notifications:
+        n["_id"] = str(n["_id"])
+    return notifications
+
+@api_router.post("/notifications/read/{notif_id}")
+async def mark_notification_read(notif_id: str, request: Request):
+    """Mark a notification as read for the current user."""
+    user = await get_current_user(request)
+    await db.notifications.update_one(
+        {"_id": ObjectId(notif_id)},
+        {"$addToSet": {"read_by": str(user["_id"])}}
+    )
+    return {"message": "Marked as read"}
+
 @api_router.get("/org/credits")
 async def get_org_credits(request: Request):
     """Get current organization's credit balance"""
@@ -1135,6 +1167,18 @@ async def startup():
         ]
         await db.congestion_zones.insert_many(default_zones)
         logger.info("Seeded default congestion zones")
+
+    # Seed notifications if empty
+    notif_count = await db.notifications.count_documents({})
+    if notif_count == 0:
+        sample_notifs = [
+            {"target_role": "driver", "title": "New slot available", "message": "JNPT Gate 3 has open slots for tomorrow 6AM-8AM", "created_at": datetime.now(timezone.utc).isoformat(), "read_by": []},
+            {"target_role": "organization", "title": "Weekly report ready", "message": "Your fleet efficiency report for this week is now available in Analytics", "created_at": datetime.now(timezone.utc).isoformat(), "read_by": []},
+            {"target_role": "admin", "title": "System update", "message": "MongoDB indexes have been rebuilt successfully", "created_at": datetime.now(timezone.utc).isoformat(), "read_by": []},
+            {"target_role": "all", "title": "Platform maintenance", "message": "Scheduled maintenance on Sunday 2AM-4AM IST", "created_at": datetime.now(timezone.utc).isoformat(), "read_by": []}
+        ]
+        await db.notifications.insert_many(sample_notifs)
+        logger.info("Seeded sample notifications")
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
     logger.info(f"[DEV] Test admin: {admin_email}")
