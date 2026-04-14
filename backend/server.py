@@ -12,6 +12,7 @@ from bson import ObjectId
 import os
 import re
 import logging
+from math import radians, sin, cos, sqrt, atan2
 import bcrypt
 import jwt
 import asyncio
@@ -183,6 +184,14 @@ class DriverLinkInput(BaseModel):
 
 class DriverUnlinkInput(BaseModel):
     driver_id: str
+
+class CongestionZone(BaseModel):
+    name: str
+    lat: float
+    lng: float
+    radius: float  # in meters
+    severity: str = "medium"  # low, medium, high
+    active: bool = True
 
 # ========== HEALTH ENDPOINT ==========
 
@@ -616,6 +625,36 @@ async def get_org_stats(request: Request):
 
 # ========== CREDIT ENDPOINTS ==========
 
+# ========== CONGESTION ZONES ENDPOINTS ==========
+
+@api_router.get("/congestion-zones")
+async def get_congestion_zones():
+    """Return all active congestion zones."""
+    zones = await db.congestion_zones.find({"active": True}).to_list(100)
+    for z in zones:
+        z["_id"] = str(z["_id"])
+    return zones
+
+@api_router.post("/congestion-zones")
+async def create_congestion_zone(zone: CongestionZone, request: Request):
+    """Admin-only: create a new congestion zone."""
+    user = await get_current_user(request)
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    doc = zone.dict()
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.congestion_zones.insert_one(doc)
+    return {"id": str(result.inserted_id), "message": "Zone created"}
+
+@api_router.delete("/congestion-zones/{zone_id}")
+async def delete_congestion_zone(zone_id: str, request: Request):
+    """Admin-only: delete a congestion zone."""
+    user = await get_current_user(request)
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    await db.congestion_zones.delete_one({"_id": ObjectId(zone_id)})
+    return {"message": "Zone deleted"}
+
 @api_router.get("/org/credits")
 async def get_org_credits(request: Request):
     """Get current organization's credit balance"""
@@ -1018,6 +1057,29 @@ async def handle_location_update(sid, data):
         await sio.emit('truck-position-update', position_doc)
         logger.info(f'Location broadcast for driver {position_doc["driver_name"]}: {position_doc["lat"]},{position_doc["lng"]}')
 
+        # Check if driver entered any congestion zone
+        zones = await db.congestion_zones.find({"active": True}).to_list(50)
+        for zone in zones:
+            R = 6371000  # Earth radius in meters
+            lat1, lon1 = radians(position_doc["lat"]), radians(position_doc["lng"])
+            lat2, lon2 = radians(zone["lat"]), radians(zone["lng"])
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
+            c = 2 * atan2(sqrt(a), sqrt(1-a))
+            distance = R * c
+            
+            if distance <= zone["radius"]:
+                alert_data = {
+                    "type": "congestion_alert",
+                    "zone_name": zone["name"],
+                    "severity": zone["severity"],
+                    "message": f"You are entering congestion zone: {zone['name']}",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+                await sio.emit("congestion-alert", alert_data, room=sid)
+                break  # Only alert for the nearest zone
+
     except Exception as e:
         logger.error(f'Socket location-update error: {e}')
 
@@ -1060,6 +1122,19 @@ async def startup():
     await seed_delivery_slots()
     await seed_sample_reports()
     await seed_org_credits()
+
+    # Seed congestion zones if empty
+    zone_count = await db.congestion_zones.count_documents({})
+    if zone_count == 0:
+        default_zones = [
+            {"name": "Mumbai Port Trust Gate", "lat": 18.9388, "lng": 72.8354, "radius": 500, "severity": "high", "active": True},
+            {"name": "JNPT Entry Road", "lat": 18.9500, "lng": 72.9500, "radius": 800, "severity": "high", "active": True},
+            {"name": "Atal Setu Toll Plaza", "lat": 19.0178, "lng": 72.9950, "radius": 400, "severity": "medium", "active": True},
+            {"name": "Nhava Sheva Approach", "lat": 18.9600, "lng": 72.9300, "radius": 600, "severity": "medium", "active": True},
+            {"name": "Uran Junction", "lat": 18.8900, "lng": 72.9400, "radius": 350, "severity": "low", "active": True}
+        ]
+        await db.congestion_zones.insert_many(default_zones)
+        logger.info("Seeded default congestion zones")
 
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
     logger.info(f"[DEV] Test admin: {admin_email}")
