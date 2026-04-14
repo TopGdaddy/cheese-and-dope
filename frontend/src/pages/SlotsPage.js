@@ -21,6 +21,7 @@ const routes = ["MG Road Commercial Zone", "Western Express Highway", "Eastern F
 export default function SlotsPage() {
   const { user } = useAuth();
   const [slots, setSlots] = useState([]);
+  const [bookedSlots, setBookedSlots] = useState([]);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedRoute, setSelectedRoute] = useState(routes[0]);
   const [booking, setBooking] = useState(false);
@@ -45,11 +46,23 @@ export default function SlotsPage() {
 
   useEffect(() => { fetchSlots(); }, [fetchSlots]);
 
+  const fetchBookedSlots = useCallback(async () => {
+    try {
+      const { data } = await axios.get(`${API}/slots/bookings`, { withCredentials: true });
+      setBookedSlots(data);
+    } catch (err) {
+      console.error('Fetch booked slots error:', err);
+    }
+  }, []);
+
+  useEffect(() => { fetchBookedSlots(); }, [fetchBookedSlots]);
+
   const handleBook = async (slotId) => {
     setBooking(true);
     try {
       const response = await axios.post(`${API}/slots/book`, { slot_id: slotId }, { withCredentials: true });
       fetchSlots();
+      fetchBookedSlots();
       // Show success with credit info
       if (response.data.remaining_credits !== null && response.data.remaining_credits !== undefined) {
         toast.success(`Slot booked! Credits used: ${response.data.credit_cost}. Remaining: ${response.data.remaining_credits}`);
@@ -60,6 +73,27 @@ export default function SlotsPage() {
       toast.error(err.response?.data?.detail || 'Booking failed');
     } finally {
       setBooking(false);
+    }
+  };
+
+  const handleCancelSlot = async (bookingId) => {
+    if (!window.confirm("Are you sure you want to cancel this booking? Credits will be refunded.")) return;
+    
+    try {
+      const res = await fetch(`${API}/slots/cancel/${bookingId}`, {
+        method: "DELETE",
+        credentials: "include"
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Booking cancelled. ${data.refunded} credit(s) refunded.`);
+        fetchBookedSlots();
+        fetchSlots();
+      } else {
+        toast.error(data.detail || "Failed to cancel");
+      }
+    } catch (err) {
+      toast.error("Network error");
     }
   };
 
@@ -113,6 +147,50 @@ export default function SlotsPage() {
             </Select>
           </div>
         </div>
+
+        {/* My Booked Slots */}
+        {bookedSlots.length > 0 && (
+          <div className="bg-white border border-[#E5E7EB] mb-4" data-testid="booked-slots">
+            <div className="px-4 py-3 border-b border-[#E5E7EB] bg-[#002FA7]/5">
+              <h2 className="text-sm font-bold text-[#002FA7]" style={{ fontFamily: 'IBM Plex Sans' }}>
+                My Booked Slots ({bookedSlots.length})
+              </h2>
+            </div>
+            <div className="divide-y divide-[#E5E7EB]">
+              {bookedSlots.map(booking => {
+                const isCancelled = booking.status === 'cancelled';
+                return (
+                  <div key={booking._id || booking.booking_id} className="px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Clock className="w-4 h-4 text-[#6B7280]" />
+                      <div>
+                        <p className="text-sm font-medium">
+                          {booking.start_time} - {booking.end_time}
+                          {booking.route_name && <span className="text-[#6B7280] ml-2">({booking.route_name})</span>}
+                        </p>
+                        <p className="text-xs text-[#6B7280]">
+                          {booking.date} • Cost: {booking.credit_cost || 1} credits
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      {isCancelled ? (
+                        <Badge variant="secondary" className="text-[10px] bg-gray-100 text-gray-500">Cancelled</Badge>
+                      ) : (
+                        <button
+                          onClick={() => handleCancelSlot(booking._id || booking.booking_id)}
+                          className="text-red-600 border border-red-300 rounded px-3 py-1 text-sm hover:bg-red-50"
+                        >
+                          Cancel Booking
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Slots table */}
         <div className="bg-white border border-[#E5E7EB]">
